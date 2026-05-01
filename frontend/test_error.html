@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head>
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            document.body.innerHTML += "<div style='color:red;font-size:24px;'>" + msg + " line " + line + "</div>";
+            return true;
+        };
+    </script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+    <div id="chart-container" style="width: 400px; height: 300px;"></div>
+    <div id="connection-status"></div>
+    <div id="sentiment-bar"></div>
+    <div id="sentiment-label"></div>
+    <div id="sentiment-value"></div>
+    <div id="portfolio-value"></div>
+    <div id="discussion-feed"></div>
+    <div id="system-alerts"></div>
+    <textarea id="user-input"></textarea>
+    <button id="send-btn"></button>
+    <button id="buy-btn"></button>
+    <button id="sell-btn"></button>
+    <script>
+        // Mock lucide to avoid errors
+        const lucide = { createIcons: () => {} };
+    </script>
+    <script src="app.js"></script>
+</body></html>

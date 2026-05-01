@@ -1,0 +1,81 @@
+{
+  "balance": 5308.75345,
+  "positions": [
+    {
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "entry_price": 1.17914613,
+      "side": "buy"
+    },
+    {
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "entry_price": 1.171509,
+      "side": "buy"
+    },
+    {
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "entry_price": 1.171509,
+      "side": "buy"
+    },
+    {
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "entry_price": 1.171509,
+      "side": "buy"
+    }
+  ],
+  "history": [
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.17793284
+    },
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.17793284
+    },
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.17914613
+    },
+    {
+      "action": "sell",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.17914613,
+      "profit": 1.2132899999999225
+    },
+    {
+      "action": "sell",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.17914613,
+      "profit": 1.2132899999999225
+    },
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.171509
+    },
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.171509
+    },
+    {
+      "action": "buy",
+      "symbol": "EUR/USD",
+      "amount": 1000.0,
+      "price": 1.171509
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+﻿# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets - NEVER push
+.env
+*.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+backend_err.txt
+backend_log.txt
+startup.log
+startup_err.log
+test_results.txt
+
+# Claude Code internals
+.claude/
+
+# VS Code
+.vscode/
+
+# Temp files
+scratch/
+fix_env.ps1
+check_models.py
+populate_50_books.py
+test_api.py
+test_agents.py
+
+# User data
+user_insights/
+backend/user_insights/
+backend/memory/
+backend/knowledge/
+knowledge/

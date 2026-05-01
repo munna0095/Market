@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Agent Graph — Strategic War Room</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0f14;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: #7dd3fc;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: .85rem;
+      color: #64748b;
+      margin-bottom: 40px;
+    }
+
+    /* ── graph card ─────────────────────────────────────── */
+    .card {
+      background: #131720;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 32px;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 32px;
+    }
+
+    .card h2 {
+      font-size: .9rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #475569;
+      margin-bottom: 20px;
+    }
+
+    .mermaid { text-align: center; }
+
+    /* ── legend ─────────────────────────────────────────── */
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .legend-item {
+      background: #131720;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .legend-item .dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .legend-item .label { font-size: .85rem; font-weight: 600; }
+    .legend-item .desc  { font-size: .78rem; color: #64748b; margin-top: 6px; line-height: 1.4; }
+
+    .green  { background: #22c55e; }
+    .blue   { background: #38bdf8; }
+    .yellow { background: #facc15; }
+    .purple { background: #a78bfa; }
+    .red    { background: #f87171; }
+
+    /* ── token table ─────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .83rem;
+    }
+    th {
+      text-align: left;
+      color: #475569;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 8px 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #0f172a;
+      color: #cbd5e1;
+    }
+    tr:last-child td { border-bottom: none; }
+    .good  { color: #22c55e; font-weight: 600; }
+    .bad   { color: #f87171; }
+  </style>
+</head>
+<body>
+
+  <h1>Agent Graph — Strategic War Room</h1>
+  <p class="subtitle">GraphOrchestrator topology · token-efficient routing</p>
+
+  <!-- ── Mermaid graph ───────────────────────────────── -->
+  <div class="card">
+    <h2>Execution Graph</h2>
+    <div class="mermaid">
+flowchart TD
+    START(["▶ START"]):::start
+
+    subgraph ROUTER["🧭 router_node  —  0 LLM tokens"]
+        R{"Rule-based\nrouter"}
+    end
+
+    subgraph AGENTS["⚡ Parallel agent nodes  —  only selected agents run"]
+        direction LR
+        Q["⚙️ Quantitative\nAgent\n(always)"]:::always
+        A["📚 Academic\nAgent\n(RSI extreme\nor strong trend)"]:::conditional
+        G["🌍 Geopolitical\nAgent\n(news present)"]:::conditional
+        U["👤 User Insight\nAgent\n(user submitted)"]:::conditional
+    end
+
+    D["🎯 decision_node\nOrchestrator\nsynthesizes only\nwhat ran"]:::decision
+
+    END_(["⏹ END"]):::start
+
+    START --> R
+    R -- "quant always" --> Q
+    R -- "|RSI-50|>15\nor STRONG trend" --> A
+    R -- "news_text\n> 80 chars" --> G
+    R -- "user_insights/\nfolder not empty" --> U
+    Q --> D
+    A --> D
+    G --> D
+    U --> D
+    D --> END_
+
+    classDef start    fill:#1e293b,stroke:#38bdf8,color:#7dd3fc,rx:20
+    classDef always   fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    classDef conditional fill:#1e3a5f,stroke:#38bdf8,color:#bae6fd
+    classDef decision fill:#3b0764,stroke:#a78bfa,color:#e9d5ff
+    </div>
+  </div>
+
+  <!-- ── Legend ──────────────────────────────────────── -->
+  <div class="legend" style="margin-bottom:32px">
+    <div class="legend-item">
+      <span class="dot green"></span><span class="label">Quantitative Agent</span>
+      <p class="desc">Always runs. Pure math — RSI, MACD, EMA, probability bands. Cheapest token cost.</p>
+    </div>
+    <div class="legend-item">
+      <span class="dot blue"></span><span class="label">Academic Agent</span>
+      <p class="desc">Conditional. Fires when RSI is extreme (&gt;65 / &lt;35) or trend is clearly directional.</p>
+    </div>
+    <div class="legend-item">
+      <span class="dot yellow"></span><span class="label">Geopolitical Agent</span>
+      <p class="desc">Conditional. Fires only when news feed has meaningful content (&gt;80 chars).</p>
+    </div>
+    <div class="legend-item">
+      <span class="dot purple"></span><span class="label">User Insight Agent</span>
+      <p class="desc">Conditional. Fires only when you've submitted a manual insight this session.</p>
+    </div>
+    <div class="legend-item">
+      <span class="dot red"></span><span class="label">Orchestrator (decision node)</span>
+      <p class="desc">Always runs last. Synthesizes only reports that actually ran this cycle.</p>
+    </div>
+  </div>
+
+  <!-- ── Token savings table ─────────────────────────── -->
+  <div class="card">
+    <h2>Token Savings Per Cycle</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Market Condition</th>
+          <th>Before (linear)</th>
+          <th>After (graph)</th>
+          <th>Agents skipped</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Quiet — neutral RSI, no news</td>
+          <td class="bad">4 agents + 16s delay</td>
+          <td class="good">1 agent (quant)</td>
+          <td class="good">academic, geo, user</td>
+        </tr>
+        <tr>
+          <td>Trending — strong RSI, no news</td>
+          <td class="bad">4 agents + 16s delay</td>
+          <td class="good">2 agents parallel</td>
+          <td class="good">geo, user</td>
+        </tr>
+        <tr>
+          <td>News day — neutral RSI + news</td>
+          <td class="bad">4 agents + 16s delay</td>
+          <td class="good">2 agents parallel</td>
+          <td class="good">academic, user</td>
+        </tr>
+        <tr>
+          <td>Full signal — all conditions met</td>
+          <td class="bad">4 agents + 16s delay</td>
+          <td class="good">4 agents parallel</td>
+          <td class="good">0s delay (concurrent)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        background:       '#131720',
+        primaryColor:     '#1e293b',
+        primaryTextColor: '#e2e8f0',
+        lineColor:        '#38bdf8',
+        edgeLabelBackground: '#0d0f14',
+        fontSize:         '14px',
+      },
+      flowchart: { curve: 'basis', padding: 20 },
+    });
+  </script>
+</body>
+</html>

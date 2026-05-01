@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-dotenv
+alpha_vantage
+google-generativeai
+httpx
+pydantic
+websockets
+python-multipart
+yfinance
+anthropic>=0.90.0
+groq>=0.10.0
+python-telegram-bot>=21.0
+pytz
