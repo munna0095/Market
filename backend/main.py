@@ -8,6 +8,7 @@ This gives real-time price updates without AI blocking the feed.
 import asyncio
 import json
 import os
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
@@ -619,74 +620,80 @@ async def outcome_checker_loop():
         await asyncio.sleep(3600)
 
 
-# ── LOOP 2: AI Agent Loop (every 5 minutes) ────────────────────────────────────
+# ── LOOP 2: AI Agent Loop — SMART session-aware ────────────────────────────────
 async def agent_loop():
     """
-    Runs every 5 minutes. Analyzes ALL monitored pairs each cycle.
-    Sends signals, news, sentiment. Does NOT block price_loop.
+    SMART activation — only runs agents during relevant market sessions.
+    Saves 70-80% tokens vs 24/7 mode.
     """
-    print("[Agent Loop] Starting — 900s interval, all pairs per cycle")
-    loop_count = 0
+    print("[Agent Loop] Starting — SMART session-aware mode")
+    await asyncio.sleep(10)
+
     while True:
-        loop_count += 1
-        print(f"\n[Agent Loop] Cycle #{loop_count}")
         try:
-            market_summary = await market_data_agent.get_market_summary(MONITORED_PAIRS)
-            news_text = market_summary.get("news_text", "")
-            news_list = market_summary.get("news", [])
+            # Get current IST time
+            now_utc    = datetime.utcnow()
+            ist_offset = 330  # IST = UTC + 5:30 = 330 minutes
+            ist_total  = now_utc.hour * 60 + now_utc.minute + ist_offset
+            ist_hour   = (ist_total // 60) % 24
+            ist_minute = ist_total % 60
+            ist_time   = ist_hour * 60 + ist_minute
+            weekday    = now_utc.weekday()  # 0=Mon, 6=Sun
 
-            global _world_news_cache
-            # Refresh world news every 6 loops (30 minutes)
-            if loop_count == 1 or loop_count % 6 == 0:
-                try:
-                    print("[Agent Loop] Refreshing Global Intelligence feed...")
-                    _world_news_cache = await asyncio.get_event_loop().run_in_executor(
-                        None, world_feed_service.fetch_top_10_events
-                    )
-                except Exception as e:
-                    print(f"[Agent Loop] World news refresh error: {e}")
+            pairs_to_run = []
 
-            if news_list:
-                await manager.broadcast(json.dumps({
-                    "type": "news_update",
-                    "headlines": [n.get("headline", "") for n in news_list[:6]],
-                    "news": news_list[:6]
-                }))
+            # ── NIFTY / SENSEX: only during NSE hours Mon-Fri ──
+            NSE_OPEN  = 9 * 60 + 15   # 9:15 AM IST
+            NSE_CLOSE = 15 * 60 + 30  # 3:30 PM IST
+            if weekday < 5 and NSE_OPEN <= ist_time <= NSE_CLOSE:
+                pairs_to_run += ["NIFTY", "SENSEX"]
 
-            try:
-                sentiment_data = await sentiment_service.get_crypto_sentiment()
-                await manager.broadcast(json.dumps({
-                    "type": "market_sentiment", "data": sentiment_data
-                }))
-            except Exception as e:
-                print(f"[Agent Loop] Sentiment error: {e}")
+            # ── BTC: Asian + London + NY session opens ──
+            BTC_WINDOWS = [
+                (2*60,  2*60+45),   # 2:00-2:45 AM IST (Asian open)
+                (13*60, 13*60+45),  # 1:00-1:45 PM IST (London open)
+                (20*60, 20*60+45),  # 8:00-8:45 PM IST (NY open)
+            ]
+            for start, end in BTC_WINDOWS:
+                if start <= ist_time <= end:
+                    pairs_to_run.append("BTC/USD")
+                    break
 
-            # ── SMART PAIR SELECTION (save tokens) ────────────────────────
-            # NSE pairs: only during market hours (9:15-15:30 IST Mon-Fri)
-            # Forex/Crypto: always analyze
-            from services.nse_service import is_nse_market_open, NSE_PAIRS
-            nse_open = is_nse_market_open()["is_open"]
+            # ── Forex: London + NY sessions only ──
+            FOREX_WINDOWS = [
+                (13*60+30, 16*60),  # 1:30-4:00 PM IST (London)
+                (18*60+30, 21*60),  # 6:30-9:00 PM IST (NY)
+            ]
+            for start, end in FOREX_WINDOWS:
+                if start <= ist_time <= end:
+                    pairs_to_run += ["EUR/USD", "USD/JPY"]
+                    break
 
-            pairs_to_analyze = []
-            for p in MONITORED_PAIRS:
-                if p in NSE_PAIRS:
-                    if nse_open:
-                        pairs_to_analyze.append(p)
-                    else:
-                        print(f"[Agent Loop] Skipping {p} — NSE market closed (saving tokens)")
-                        _latest_signals[p] = {"decision": "MARKET CLOSED", "confidence": 0}
-                else:
-                    pairs_to_analyze.append(p)  # Forex/Crypto always runs
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_pairs = []
+            for p in pairs_to_run:
+                if p not in seen:
+                    seen.add(p)
+                    unique_pairs.append(p)
 
-            print(f"[Agent Loop] Analyzing {len(pairs_to_analyze)}/{len(MONITORED_PAIRS)} pairs: {pairs_to_analyze}")
-            for target_pair in pairs_to_analyze:
-                print(f"[Agent Loop] AI analysis → {target_pair}")
-                await _run_agents_for_pair(target_pair, market_summary, news_text)
-                await asyncio.sleep(5)  # 5s gap between pairs to avoid simultaneous API bursts
+            if unique_pairs:
+                print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
+                      f"— Running {unique_pairs}")
+                market_summary = await market_data_agent.get_market_summary()
+                news_text = world_feed_service._last_feed if hasattr(world_feed_service, '_last_feed') else ""
+
+                for pair in unique_pairs:
+                    await _run_agents_for_pair(pair, market_summary, news_text)
+                    await asyncio.sleep(5)
+            else:
+                print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
+                      f"— No active sessions, sleeping")
 
         except Exception as e:
-            print(f"[Agent Loop] Critical error #{loop_count}: {e}")
-        await asyncio.sleep(900)  # 15 minutes (saves 3x tokens vs 5 min)
+            print(f"[Agent Loop] Error: {e}")
+
+        await asyncio.sleep(900)  # check every 15 minutes
 
 @app.on_event("startup")
 async def startup_event():

@@ -127,29 +127,42 @@ def _add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _signal(rsi: float, macd: float, macd_sig: float,
+def _signal(close: float, rsi: float, macd: float, macd_sig: float,
             bos_bull: bool, bos_bear: bool,
-            volume_ok: bool, vol_percentile: float, adx: float) -> tuple[str, int]:
+            volume_ok: bool, vol_percentile: float, adx: float,
+            pair: str = "") -> tuple[str, int]:
     """Returns (signal, confidence) using regime-aware rules."""
     if pd.isna(rsi) or pd.isna(adx) or pd.isna(macd):
         return "HOLD", 0
 
-    regime = "TRENDING" if adx > 20 else "RANGING"
+    FOREX_PAIRS = ["EUR/USD", "USD/JPY"]
+    adx_threshold = 25 if pair in FOREX_PAIRS else 20
+    regime = "TRENDING" if adx > adx_threshold else "RANGING"
 
     if regime == "TRENDING":
         if bos_bull and volume_ok and macd > macd_sig and rsi < 60:
+            if pair == "BTC/USD" and (macd - macd_sig) <= 0:
+                return "HOLD", 0
             confidence = 55
             if vol_percentile > 0.80: confidence += 10
             if rsi < 50:              confidence += 5
             return "BUY", confidence
 
         if bos_bear and volume_ok and macd < macd_sig and rsi > 40:
+            if pair == "BTC/USD" and (macd - macd_sig) >= 0:
+                return "HOLD", 0
             confidence = 55
             if vol_percentile > 0.80: confidence += 10
             if rsi > 50:              confidence += 5
             return "SELL", confidence
 
     else:  # RANGING
+        # Forex pairs don't mean-revert reliably on 15M
+        # RSI extremes in forex = continuation, not reversal
+        RANGING_EXCLUDED = ["EUR/USD", "USD/JPY"]
+        if pair in RANGING_EXCLUDED:
+            return "HOLD", 0
+
         if rsi < 30 and volume_ok:
             return "BUY", 60
         if rsi > 70 and volume_ok:
@@ -250,9 +263,11 @@ def run_backtest(pair: str) -> dict:
         ema9         = float(row["ema9"])
         ema21        = float(row["ema21"])
 
+        close = float(row["Close"])
         sig, confidence = _signal(
-            rsi, macd, macd_sig_val,
+            close, rsi, macd, macd_sig_val,
             bos_bull, bos_bear, volume_ok, vol_pct, adx,
+            pair=pair
         )
         correct = _is_correct(sig, i, df, threshold)
 
