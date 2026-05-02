@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timedelta
+import pandas as pd
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
@@ -491,6 +492,41 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         # Persist signal to database
         decision   = final.get("decision", "HOLD")
         confidence = int(final.get("confidence", 0))
+
+        # ATR-based stop-loss and target calculation
+        stop_loss = None
+        target    = None
+        try:
+            import yfinance as yf
+            _TICKERS = {
+                "NIFTY":   "^NSEI",  "SENSEX":  "^BSESN",
+                "BTC/USD": "BTC-USD","EUR/USD": "EURUSD=X","USD/JPY": "JPY=X",
+            }
+            ticker = _TICKERS.get(target_pair)
+            if ticker:
+                df_atr = yf.download(ticker, period="5d", interval="15m", progress=False)
+                if isinstance(df_atr.columns, pd.MultiIndex):
+                    df_atr.columns = [c[0] for c in df_atr.columns]
+                high       = df_atr["High"]
+                low        = df_atr["Low"]
+                close_atr  = df_atr["Close"]
+                prev_close = close_atr.shift(1)
+                tr = pd.concat([
+                    high - low,
+                    (high - prev_close).abs(),
+                    (low  - prev_close).abs(),
+                ], axis=1).max(axis=1)
+                atr   = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
+                entry = float(final.get("price", 0))
+                if decision == "BUY":
+                    stop_loss = round(entry - (atr * 1.5), 4)
+                    target    = round(entry + (atr * 2.0), 4)
+                elif decision == "SELL":
+                    stop_loss = round(entry + (atr * 1.5), 4)
+                    target    = round(entry - (atr * 2.0), 4)
+        except Exception as e:
+            print(f"[ATR] Calculation failed: {e}")
+
         try:
             def _safe_float(val):
                 """Extract scalar float from any value safely."""
@@ -514,7 +550,9 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                 regime     = "TRENDING" if (_safe_float(indicators.get("adx")) or 0) > 20
                              else "RANGING",
                 provider   = final.get("provider", "unknown"),
-                source     = "webhook" if force_run else "agent_loop"
+                source     = "webhook" if force_run else "agent_loop",
+                stop_loss  = stop_loss,
+                target     = target,
             )
             print(f"[DB] Signal saved -> {target_pair} {final.get('decision')} id={sig_id}")
         except Exception as e:
@@ -522,14 +560,16 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
 
         # Send signal to Telegram (only if confidence >= 65% and auto cycle)
         if send_telegram and confidence >= 65 and decision in ["BUY", "SELL", "STRONG BUY", "STRONG SELL"]:
+            sl_text = f"{stop_loss:.4f}" if stop_loss else "N/A"
+            tp_text = f"{target:.4f}"    if target    else "N/A"
             await telegram_service.send_signal(
                 agent_name="Boss Agent",
                 pair=target_pair,
                 decision=decision,
                 confidence=confidence,
                 entry=round(float(final["price"]), 2),
-                stop=None,
-                target=None,
+                stop=sl_text,
+                target=tp_text,
                 reasoning=final.get("thought", "")[:150]
             )
         else:
@@ -587,21 +627,44 @@ async def outcome_checker_loop():
                     )
                     if data.empty:
                         continue
-                    current = float(data["Close"].iloc[-1])
-                    entry   = sig["price_at_signal"]
+                    current  = float(data["Close"].iloc[-1])
+                    entry    = sig["price_at_signal"]
                     if not entry or entry == 0:
                         continue
 
-                    pct = (current - entry) / entry
+                    sl       = sig.get("stop_loss")
+                    tp       = sig.get("target")
+                    dec      = sig["decision"]
 
-                    if sig["decision"] == "BUY":
-                        outcome = "WIN"  if pct >  0.002 else \
-                                  "LOSS" if pct < -0.002 else "NEUTRAL"
-                    elif sig["decision"] == "SELL":
-                        outcome = "WIN"  if pct < -0.002 else \
-                                  "LOSS" if pct >  0.002 else "NEUTRAL"
+                    if sl and tp:
+                        if dec == "BUY":
+                            if current >= tp:
+                                outcome = "WIN"
+                            elif current <= sl:
+                                outcome = "LOSS"
+                            else:
+                                outcome = "PENDING"
+                        elif dec == "SELL":
+                            if current <= tp:
+                                outcome = "WIN"
+                            elif current >= sl:
+                                outcome = "LOSS"
+                            else:
+                                outcome = "PENDING"
+                        else:
+                            outcome = "NEUTRAL"
                     else:
-                        outcome = "NEUTRAL"
+                        # Fallback: 0.2% threshold
+                        pct = (current - entry) / entry
+                        if dec == "BUY":
+                            outcome = "WIN" if pct > 0.002 else "LOSS" if pct < -0.002 else "NEUTRAL"
+                        elif dec == "SELL":
+                            outcome = "WIN" if pct < -0.002 else "LOSS" if pct > 0.002 else "NEUTRAL"
+                        else:
+                            outcome = "NEUTRAL"
+
+                    if outcome == "PENDING":
+                        continue  # SL/TP not hit yet — leave in PENDING state
 
                     update_outcome(
                         signal_id = sig["id"],
@@ -609,7 +672,7 @@ async def outcome_checker_loop():
                         price_1h  = current,
                     )
                     print(f"[Outcome] {sig['pair']} {sig['decision']} "
-                          f"-> {outcome} ({pct*100:.2f}%)")
+                          f"-> {outcome} (price={current})")
 
                 except Exception as e:
                     print(f"[Outcome] Error on signal {sig.get('id')}: {e}")

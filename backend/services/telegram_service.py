@@ -85,6 +85,7 @@ class TelegramService:
                 f"*Entry:* {entry if entry else 'N/A'}\n"
                 f"*Stop Loss:* {stop if stop else 'N/A'}\n"
                 f"*Target:* {target if target else 'N/A'}\n"
+                f"*R:R:* {f'1:{round(abs((float(target)-float(entry))/(float(entry)-float(stop))),1)}' if stop and target and entry and stop != entry else 'N/A'}\n"
             )
             if clean_reasoning:
                 message += f"━━━━━━━━━━━━━━━━━\n*Reasoning:* {clean_reasoning}\n"

@@ -1343,10 +1343,78 @@
         }
         #bt-open-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
         #bt-open-btn.active { background: rgba(41,98,255,0.12); color: var(--accent-blue); border-color: var(--accent-blue); }
+
+        /* ── SIDEBAR LAYOUT ───────────────────────────────────── */
+        #app-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+        #sidebar { width: 200px; min-width: 200px; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px 0; z-index: 200; }
+        #sidebar-logo { padding: 8px 16px 16px; font-weight: 700; font-size: 13px; color: var(--accent-blue); border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; color: var(--text-secondary); font-size: 13px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; user-select: none; }
+        .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .nav-item.active { color: var(--accent-blue); border-left-color: var(--accent-blue); background: rgba(41,98,255,0.08); }
+        .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .nav-section-label { font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 8px 16px 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+        #sidebar-bottom { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        #main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .page { display: none; flex: 1; overflow: hidden; }
+        .page.active { display: flex; flex-direction: column; }
+        .pt-stat-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+        .pt-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; }
+        .pt-stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+        .pt-stat-value.green { color: var(--green); }
+        .pt-stat-value.red { color: var(--red); }
+        .pt-table-wrap { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 16px; }
+        .pt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .pt-table th { padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-muted); background: var(--bg-tertiary); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        .pt-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
+        .pt-table tr:last-child td { border-bottom: none; }
+        .pt-table tr:hover td { background: var(--bg-hover); }
+        .pt-win td { background: rgba(8,153,129,0.05); }
+        .pt-loss td { background: rgba(242,54,69,0.05); }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge-buy { background: rgba(8,153,129,0.15); color: var(--green); }
+        .badge-sell { background: rgba(242,54,69,0.15); color: var(--red); }
+        .badge-win { background: rgba(8,153,129,0.15); color: var(--green); }
+        .badge-loss { background: rgba(242,54,69,0.15); color: var(--red); }
+        .badge-open { background: rgba(41,98,255,0.15); color: var(--accent-blue); }
+        .badge-expired { background: rgba(120,123,134,0.15); color: var(--text-secondary); }
+        .agent-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+        .agent-name { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .agent-role { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
+        .agent-stat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-light); }
+        .agent-stat-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
+<div id="app-layout">
+<nav id="sidebar">
+  <div id="sidebar-logo">⚔️ War Room</div>
+  <div class="nav-section-label">Navigation</div>
+  <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Live Dashboard
+  </div>
+  <div class="nav-item" onclick="showPage('paper')" id="nav-paper">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Paper Trades
+  </div>
+  <div class="nav-item" onclick="showPage('backtest')" id="nav-backtest">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Backtest
+  </div>
+  <div class="nav-item" onclick="showPage('agents')" id="nav-agents">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+    Agents
+  </div>
+  <div id="sidebar-bottom">
+    <span class="status-dot"></span>
+    <span style="font-size:11px;color:var(--text-secondary)">System Live</span>
+  </div>
+</nav>
+<div id="main-content">
 
+<div class="page active" id="page-dashboard">
 <!-- ══════════════ HEADER ══════════════ -->
 <header id="header">
     <div class="logo">
@@ -2148,6 +2216,130 @@
         loadBacktest('NIFTY');
     });
 }());
+</script>
+
+</div><!-- /page-dashboard -->
+
+<div class="page" id="page-paper">
+  <div style="padding:20px;overflow-y:auto;flex:1;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">Paper Trades</div>
+      <button onclick="loadPaperTrades()" style="padding:6px 14px;background:var(--accent-blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Refresh</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+      <div class="pt-stat-card"><div class="pt-stat-label">Total Signals</div><div class="pt-stat-value" id="pt-total">—</div></div>
+      <div class="pt-stat-card"><div class="pt-stat-label">Wins</div><div class="pt-stat-value green" id="pt-wins">—</div></div>
+      <div class="pt-stat-card"><div class="pt-stat-label">Losses</div><div class="pt-stat-value red" id="pt-losses">—</div></div>
+      <div class="pt-stat-card"><div class="pt-stat-label">Win Rate</div><div class="pt-stat-value" id="pt-winrate">—</div></div>
+    </div>
+    <div class="pt-table-wrap">
+      <table class="pt-table">
+        <thead><tr><th>Time</th><th>Pair</th><th>Signal</th><th>Entry</th><th>SL</th><th>Target</th><th>Confidence</th><th>Outcome</th></tr></thead>
+        <tbody id="pt-tbody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="page-agents">
+  <div style="padding:20px;overflow-y:auto;flex:1;">
+    <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">Agent Performance</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+      <div class="agent-card"><div class="agent-name">Quantitative</div><div class="agent-role">Technical Analysis</div><div class="agent-stat-row"><span>Total Signals</span><span id="ap-total">—</span></div><div class="agent-stat-row"><span>Win Rate</span><span id="ap-wr">—</span></div></div>
+      <div class="agent-card"><div class="agent-name">Academic</div><div class="agent-role">Pattern + HTF</div><div class="agent-stat-row"><span>Best Pair</span><span id="ap-best">—</span></div><div class="agent-stat-row"><span>Signals</span><span id="ap-sig">—</span></div></div>
+      <div class="agent-card"><div class="agent-name">System</div><div class="agent-role">Overall Health</div><div class="agent-stat-row"><span>DB Records</span><span id="ap-db">—</span></div><div class="agent-stat-row"><span>Pending</span><span id="ap-pend">—</span></div></div>
+    </div>
+    <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Performance by Pair</div>
+    <div class="pt-table-wrap">
+      <table class="pt-table">
+        <thead><tr><th>Pair</th><th>Total</th><th>Wins</th><th>Losses</th><th>Win Rate</th></tr></thead>
+        <tbody id="perf-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<script>
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  const nav  = document.getElementById('nav-' + name);
+  if (page) page.classList.add('active');
+  if (nav)  nav.classList.add('active');
+  if (name === 'paper')   loadPaperTrades();
+  if (name === 'agents')  loadAgentPerformance();
+  if (name === 'backtest') { if(typeof openBacktest === 'function') openBacktest(); }
+}
+
+async function loadPaperTrades() {
+  try {
+    const r = await fetch('/api/signals/history?limit=100');
+    const data = await r.json();
+    const signals = Array.isArray(data) ? data : (data.value || []);
+    let wins=0, losses=0, total=0;
+    const rows = signals.filter(s => s.decision !== 'HOLD').map(s => {
+      total++;
+      if (s.outcome === 'WIN')  wins++;
+      if (s.outcome === 'LOSS') losses++;
+      const rc = s.outcome==='WIN'?'pt-win':s.outcome==='LOSS'?'pt-loss':'';
+      const ob = s.outcome==='WIN'?'<span class="badge badge-win">WIN ✅</span>'
+               : s.outcome==='LOSS'?'<span class="badge badge-loss">LOSS ❌</span>'
+               : s.outcome==='PENDING'?'<span class="badge badge-open">OPEN</span>'
+               : '<span class="badge badge-expired">EXPIRED</span>';
+      const sb = s.decision==='BUY'?'badge-buy':'badge-sell';
+      return `<tr class="${rc}">
+        <td style="font-family:monospace">${(s.datetime||'').slice(5,16)}</td>
+        <td><b>${s.pair}</b></td>
+        <td><span class="badge ${sb}">${s.decision}</span></td>
+        <td>${s.price_at_signal?s.price_at_signal.toFixed(2):'—'}</td>
+        <td style="color:var(--red)">${s.stop_loss?s.stop_loss.toFixed(2):'N/A'}</td>
+        <td style="color:var(--green)">${s.target?s.target.toFixed(2):'N/A'}</td>
+        <td>${s.confidence}%</td>
+        <td>${ob}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('pt-tbody').innerHTML = rows||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">No signals yet — system will populate as agents run</td></tr>';
+    document.getElementById('pt-total').textContent = total;
+    document.getElementById('pt-wins').textContent  = wins;
+    document.getElementById('pt-losses').textContent= losses;
+    const wr = total>0?Math.round((wins/total)*100)+'%':'—';
+    const el = document.getElementById('pt-winrate');
+    el.textContent = wr;
+    el.className = 'pt-stat-value '+(total>0&&wins/total>0.5?'green':'red');
+    document.getElementById('ap-total').textContent = total;
+    document.getElementById('ap-sig').textContent   = total;
+    document.getElementById('ap-db').textContent    = total;
+    const pend = signals.filter(s=>s.outcome==='PENDING').length;
+    document.getElementById('ap-pend').textContent  = pend;
+    if(total>0){ document.getElementById('ap-wr').textContent = Math.round((wins/total)*100)+'%'; }
+  } catch(e) {
+    document.getElementById('pt-tbody').innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--red)">Error: '+e.message+'</td></tr>';
+  }
+}
+
+async function loadAgentPerformance() {
+  await loadPaperTrades();
+  try {
+    const r = await fetch('/api/signals/performance');
+    const data = await r.json();
+    const rows = Object.entries(data).map(([pair,s])=>`<tr>
+      <td><b>${pair}</b></td>
+      <td>${s.total}</td>
+      <td style="color:var(--green)">${s.wins}</td>
+      <td style="color:var(--red)">${s.losses}</td>
+      <td style="color:${s.win_rate>0.5?'var(--green)':'var(--red)'}"><b>${Math.round(s.win_rate*100)}%</b></td>
+    </tr>`).join('');
+    document.getElementById('perf-tbody').innerHTML = rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">No resolved signals yet</td></tr>';
+    if(Object.keys(data).length>0){
+      const best = Object.entries(data).sort((a,b)=>b[1].win_rate-a[1].win_rate)[0];
+      document.getElementById('ap-best').textContent = best[0]+' '+Math.round(best[1].win_rate*100)+'%';
+    }
+  } catch(e) {}
+}
 </script>
 </body>
 </html>

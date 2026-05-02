@@ -41,7 +41,9 @@ def init_db() -> None:
                 price_after_1h   REAL    DEFAULT NULL,
                 price_after_4h   REAL    DEFAULT NULL,
                 price_after_1d   REAL    DEFAULT NULL,
-                outcome_checked  INTEGER DEFAULT 0
+                outcome_checked  INTEGER DEFAULT 0,
+                stop_loss        REAL    DEFAULT NULL,
+                target           REAL    DEFAULT NULL
             );
 
             CREATE TABLE IF NOT EXISTS agent_performance (
@@ -68,6 +70,16 @@ def init_db() -> None:
                 description     TEXT
             );
         """)
+    # Migrate existing DB — ignore if columns already exist
+    with _conn() as conn:
+        for col_sql in [
+            "ALTER TABLE signals_history ADD COLUMN stop_loss REAL DEFAULT NULL",
+            "ALTER TABLE signals_history ADD COLUMN target    REAL DEFAULT NULL",
+        ]:
+            try:
+                conn.execute(col_sql)
+            except Exception:
+                pass
     print("[DB] Tables initialised.")
 
 
@@ -84,6 +96,8 @@ def save_signal(
     regime: str | None,
     provider: str | None,
     source: str,
+    stop_loss: float | None = None,
+    target: float | None = None,
 ) -> int:
     """Insert a new signal into signals_history. Returns the new row id."""
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -92,11 +106,11 @@ def save_signal(
             """
             INSERT INTO signals_history
                 (pair, datetime, decision, confidence, price_at_signal,
-                 rsi, macd, adx, regime, provider, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 rsi, macd, adx, regime, provider, source, stop_loss, target)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (pair, now, decision, confidence, price,
-             rsi, macd, adx, regime, provider, source),
+             rsi, macd, adx, regime, provider, source, stop_loss, target),
         )
         return cur.lastrowid
 
