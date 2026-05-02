@@ -2220,6 +2220,8 @@
 
 </div><!-- /page-dashboard -->
 
+<div class="page" id="page-backtest"></div>
+
 <div class="page" id="page-paper">
   <div style="padding:20px;overflow-y:auto;flex:1;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -2272,7 +2274,14 @@ function showPage(name) {
   if (nav)  nav.classList.add('active');
   if (name === 'paper')   loadPaperTrades();
   if (name === 'agents')  loadAgentPerformance();
-  if (name === 'backtest') { if(typeof openBacktest === 'function') openBacktest(); }
+  if (name === 'backtest') {
+    // Backtest uses the overlay — show it directly
+    const overlay = document.getElementById('backtest-overlay');
+    if (overlay) {
+      overlay.classList.add('open');
+      if (typeof loadBacktest === 'function') loadBacktest('NIFTY');
+    }
+  }
 }
 
 async function loadPaperTrades() {
