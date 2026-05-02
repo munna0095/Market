@@ -16,7 +16,8 @@ from dotenv import load_dotenv
 load_dotenv()  # Load .env FIRST before any service initializes
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from services.trading_service import TradingService
 from services.sentiment_service import SentimentService
@@ -37,6 +38,10 @@ from services.database_service import (
 )
 
 app = FastAPI(title="Strategic War Room — AI Trading Hub v3.0")
+
+# Serve frontend static files
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -103,8 +108,15 @@ manager = ConnectionManager()
 
 # ── REST Endpoints ─────────────────────────────────────────────────────────────
 @app.get("/")
-def read_root():
+async def root():
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"status": "running", "message": "Strategic War Room API v3.0"}
+
+@app.get("/app.js")
+async def serve_js():
+    return FileResponse(os.path.join(FRONTEND_DIR, "app.js"))
 
 @app.get("/portfolio")
 @app.get("/api/portfolio")
