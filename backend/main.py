@@ -33,6 +33,7 @@ from agents.orchestrator import OrchestratorAgent
 from agents.graph_orchestrator import GraphOrchestrator
 from services.world_feed import WorldFeedService
 from agents.base_agent import _token_log
+from services.angelone_service import angel_service
 from services.database_service import (
     init_db, save_signal, get_signal_history, get_win_rate_by_pair
 )
@@ -157,6 +158,18 @@ def get_signals():
 @app.get("/api/prices")
 async def get_prices():
     prices = await market_data_agent.get_all_prices(MONITORED_PAIRS)
+    # Override NIFTY + SENSEX with AngelOne real-time price
+    for pair in ["NIFTY", "SENSEX"]:
+        if isinstance(prices, dict) and pair in prices:
+            cached = angel_service.get_cached_price(pair)
+            if cached:
+                prices[pair]["price"]  = cached["price"]
+                prices[pair]["source"] = "AngelOne-RT"
+            else:
+                live = await angel_service.get_ltp_async(pair)
+                if live:
+                    prices[pair]["price"]  = live
+                    prices[pair]["source"] = "AngelOne-LTP"
     return {"data": prices}
 
 @app.get("/api/watchlist_prices")
@@ -639,7 +652,10 @@ async def outcome_checker_loop():
                     )
                     if data.empty:
                         continue
-                    current  = float(data["Close"].iloc[-1])
+                    close_col = data["Close"]
+                    if isinstance(close_col, pd.DataFrame):
+                        close_col = close_col.iloc[:, 0]
+                    current  = float(close_col.iloc[-1])
                     entry    = sig["price_at_signal"]
                     if not entry or entry == 0:
                         continue
@@ -784,6 +800,13 @@ async def startup_event():
         print("[Telegram] Connected and ready!")
     else:
         print("[Telegram] Connection failed - check credentials in .env")
+
+    # AngelOne real-time feed for NIFTY + SENSEX
+    if angel_service.login():
+        asyncio.create_task(angel_service.refresh_prices_loop(["NIFTY", "SENSEX"], interval=3))
+        print("[Startup] AngelOne real-time feed started — NIFTY + SENSEX every 3s")
+    else:
+        print("[Startup] AngelOne login failed — using yfinance fallback for prices")
 
     asyncio.create_task(price_loop())              # Fast: 1s
     asyncio.create_task(agent_loop())              # Slow: 900s

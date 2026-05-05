@@ -1,2354 +1,634 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strategic War Room | AI Forex Intelligence</title>
-    <meta name="description" content="AI-powered multi-agent forex and crypto trading dashboard with real-time market analysis.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="lightweight-charts.js"></script>
-
-    <style>
-        :root {
-            --bg-primary:    #ffffff;
-            --bg-secondary:  #f8f9fa;
-            --bg-tertiary:   #f1f3f4;
-            --bg-hover:      #e9ecef;
-            --border:        #e0e3eb;
-            --border-light:  #f1f3f6;
-            --text-primary:  #131722;
-            --text-secondary:#787b86;
-            --text-muted:    #b2b5be;
-            --accent-blue:   #2962ff;
-            --accent-blue-dim:#1e53e5;
-            --green:         #089981;
-            --green-dim:     #057a66;
-            --red:           #f23645;
-            --red-dim:       #c92a39;
-            --orange:        #f5a623;
-            --purple:        #9c6cf5;
-            --candle-up:     #089981;
-            --candle-down:   #f23645;
-        }
-
-        [data-theme="dark"] {
-            --bg-primary:    #0d1117;
-            --bg-secondary:  #161b22;
-            --bg-tertiary:   #21262d;
-            --bg-hover:      #30363d;
-            --border:        #30363d;
-            --border-light:  #21262d;
-            --text-primary:  #e6edf3;
-            --text-secondary:#8b949e;
-            --text-muted:    #484f58;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            font-size: 13px;
-        }
-
-        /* ── HEADER ──────────────────────────────────────────── */
-        #header {
-            height: 48px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            gap: 12px;
-            flex-shrink: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            font-size: 14px;
-            letter-spacing: 0.02em;
-            margin-right: 8px;
-        }
-
-        .logo-icon {
-            width: 28px; height: 28px;
-            background: linear-gradient(135deg, #388bfd, #1f6feb);
-            border-radius: 6px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 16px rgba(56, 139, 253, 0.3);
-        }
-
-        .logo-icon svg { width: 14px; height: 14px; color: white; }
-
-        .divider-v {
-            width: 1px; height: 24px;
-            background: var(--border);
-            flex-shrink: 0;
-        }
-
-        /* Pair tabs in header */
-        .pair-tabs {
-            display: flex;
-            gap: 2px;
-        }
-
-        .pair-tab {
-            padding: 5px 14px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 13px;
-            color: var(--text-secondary);
-            border: 1px solid transparent;
-            transition: all 0.15s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .pair-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .pair-tab.active {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-            border-color: var(--border);
-        }
-
-        .pair-tab .pair-change {
-            font-size: 11px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .pair-change.up { color: var(--green); }
-        .pair-change.down { color: var(--red); }
-
-        .header-price {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 20px;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-        }
-        .header-price.up { color: var(--green); }
-        .header-price.down { color: var(--red); }
-        .header-price.neutral { color: var(--text-primary); }
-
-        .header-change {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            padding: 2px 7px;
-            border-radius: 4px;
-        }
-        .header-change.up { background: rgba(63, 185, 80, 0.15); color: var(--green); }
-        .header-change.down { background: rgba(248, 81, 73, 0.15); color: var(--red); }
-
-        /* Timeframe buttons */
-        .timeframe-group {
-            display: flex;
-            gap: 1px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 2px;
-            margin-left: auto;
-        }
-
-        .tf-btn {
-            padding: 4px 9px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
-            color: var(--text-secondary);
-            border: none;
-            background: transparent;
-            transition: all 0.15s;
-        }
-
-        .tf-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
-        .tf-btn.active { background: var(--accent-blue); color: white; }
-
-        /* Connection status */
-        #conn-status {
-            display: flex; align-items: center; gap: 6px;
-            font-size: 11px; font-weight: 500;
-            color: var(--red);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        #conn-status.connected { color: var(--green); }
-        .conn-dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* ── MAIN LAYOUT ──────────────────────────────────────── */
-        #main {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        /* ── LEFT SIDEBAR ─────────────────────────────────────── */
-        #left-sidebar {
-            width: 220px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .sidebar-section {
-            padding: 10px 12px 8px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .sidebar-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-
-        /* Sentiment */
-        .sentiment-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-light);
-            border-radius: 8px;
-            padding: 10px;
-        }
-
-        .sentiment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-
-        .sentiment-title { font-size: 10px; color: var(--text-secondary); }
-        #sentiment-value { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--orange); }
-
-        .sentiment-bar-track {
-            height: 5px;
-            background: var(--bg-primary);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 4px;
-        }
-
-        #sentiment-bar {
-            height: 100%;
-            width: 50%;
-            background: linear-gradient(90deg, var(--red), var(--orange), var(--green));
-            border-radius: 3px;
-            transition: width 1s ease;
-        }
-
-        #sentiment-label {
-            font-size: 10px;
-            text-align: center;
-            color: var(--text-secondary);
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-
-        /* Watchlist */
-        .watchlist { padding: 8px 12px; overflow-y: auto; flex: 1; }
-
-        .watch-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.15s;
-            margin-bottom: 2px;
-            border: 1px solid transparent;
-        }
-
-        .watch-item:hover { background: var(--bg-hover); }
-        .watch-item.active {
-            background: rgba(56, 139, 253, 0.08);
-            border-color: rgba(56, 139, 253, 0.25);
-        }
-
-        .watch-item-left { display: flex; align-items: center; gap: 8px; }
-
-        .watch-icon {
-            width: 28px; height: 28px;
-            border-radius: 6px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 700;
-        }
-
-        .watch-name { font-weight: 600; font-size: 12px; }
-        .watch-source { font-size: 10px; color: var(--text-muted); }
-
-        .watch-item-right { text-align: right; }
-        .watch-price {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .watch-change {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-        }
-
-        .watch-change.up { color: var(--green); }
-        .watch-change.down { color: var(--red); }
-
-        /* System alerts */
-        #alerts-container {
-            padding: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            max-height: 180px;
-            overflow-y: auto;
-        }
-
-        .alert-item {
-            padding: 7px 9px;
-            border-radius: 5px;
-            font-size: 10px;
-            display: flex;
-            gap: 6px;
-            align-items: flex-start;
-            animation: slideInLeft 0.3s ease;
-        }
-
-        @keyframes slideInLeft {
-            from { transform: translateX(-10px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .alert-warning { background: rgba(227, 179, 65, 0.1); color: var(--orange); border-left: 2px solid var(--orange); }
-        .alert-info    { background: rgba(56, 139, 253, 0.1); color: var(--accent-blue); border-left: 2px solid var(--accent-blue); }
-        .alert-success { background: rgba(63, 185, 80, 0.1); color: var(--green); border-left: 2px solid var(--green); }
-
-        /* ── CENTER PANEL ─────────────────────────────────────── */
-        #center {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* Indicator row */
-        #indicator-bar {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 6px 16px;
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            flex-shrink: 0;
-        }
-
-        .ind-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .ind-label { color: var(--text-muted); font-size: 10px; font-family: 'Inter', sans-serif; font-weight: 500; }
-        .ind-value { font-weight: 500; }
-        .ind-value.bullish { color: var(--green); }
-        .ind-value.bearish { color: var(--red); }
-        .ind-value.neutral { color: var(--orange); }
-        .ind-value.default { color: var(--text-primary); }
-
-        /* Chart */
-        #chart-wrapper {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-        }
-
-        #chart-container {
-            width: 100%;
-            height: 100%;
-        }
-
-        #chart-loading {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-primary);
-            flex-direction: column;
-            gap: 12px;
-            color: var(--text-secondary);
-        }
-
-        .spinner {
-            width: 32px; height: 32px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent-blue);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Trade bar */
-        #trade-bar {
-            height: 60px;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .trade-label { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-
-        #buy-btn, #sell-btn {
-            padding: 8px 24px;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 13px;
-            cursor: pointer;
-            border: none;
-            transition: all 0.15s ease;
-            letter-spacing: 0.03em;
-        }
-
-        #buy-btn  { background: var(--green-dim); color: white; }
-        #sell-btn { background: var(--red-dim); color: white; }
-        #buy-btn:hover  { background: var(--green); transform: translateY(-1px); }
-        #sell-btn:hover { background: var(--red); transform: translateY(-1px); }
-        #buy-btn:active, #sell-btn:active { transform: translateY(0); }
-
-        #amount-input {
-            width: 90px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            padding: 6px 10px;
-            color: var(--text-primary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            outline: none;
-        }
-
-        #amount-input:focus { border-color: var(--accent-blue); }
-
-        /* Portfolio row */
-        .portfolio-row {
-            margin-left: auto;
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-
-        .pf-item { text-align: right; }
-        .pf-item-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-        .pf-item-value { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; }
-        #portfolio-value { color: var(--green); }
-
-        /* ── NEWS TICKER ──────────────────────────────── */
-        #news-ticker {
-            background: var(--bg-tertiary);
-            border-top: 1px solid var(--border);
-            padding: 4px 16px;
-            overflow: hidden;
-            flex-shrink: 0;
-            height: 26px;
-            display: flex;
-            align-items: center;
-        }
-
-        .news-ticker-inner {
-            white-space: nowrap;
-            font-size: 11px;
-            color: var(--text-secondary);
-            animation: ticker 60s linear infinite;
-        }
-
-        @keyframes ticker {
-            0%   { transform: translateX(100%); }
-            100% { transform: translateX(-100%); }
-        }
-
-        .ticker-sep { margin: 0 24px; color: var(--text-muted); }
-
-        /* ── RIGHT SIDEBAR ────────────────────────────────────── */
-        #right-sidebar {
-            width: 340px;
-            background: var(--bg-secondary);
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .right-header {
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .right-header-title {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-        }
-
-        .thinking-dots {
-            display: flex;
-            gap: 3px;
-        }
-
-        .thinking-dot {
-            width: 4px; height: 4px;
-            border-radius: 50%;
-            background: var(--accent-blue);
-            animation: bounce 1.2s infinite;
-        }
-
-        .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
-        .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-        }
-
-        /* Discussion feed */
-        #discussion-feed {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        #discussion-feed::-webkit-scrollbar { width: 3px; }
-        #discussion-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        .agent-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-light);
-            border-radius: 8px;
-            padding: 10px 12px;
-            animation: slideInRight 0.3s ease;
-            position: relative;
-        }
-
-        @keyframes slideInRight {
-            from { transform: translateX(10px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .agent-card.academic     { border-left: 3px solid #7c3aed; }
-        .agent-card.geo          { border-left: 3px solid var(--orange); }
-        .agent-card.user         { border-left: 3px solid var(--purple); }
-        .agent-card.orchestrator { border-left: 3px solid var(--accent-blue); }
-        .agent-card.market       { border-left: 3px solid var(--green); }
-        .agent-card.quantitative { border-left: 3px solid #2962ff; }
-
-        /* Boss card (Orchestrator) */
-        .agent-card.boss {
-            border-left: 3px solid var(--accent-blue);
-            background: linear-gradient(135deg, rgba(56,139,253,0.08) 0%, var(--bg-tertiary) 100%);
-            padding: 12px 14px;
-        }
-        .boss-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-        .boss-title  { font-size:11px; font-weight:800; color:var(--accent-blue); text-transform:uppercase; letter-spacing:0.08em; }
-        .boss-decision-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-        .boss-decision {
-            font-size:18px; font-weight:900; letter-spacing:0.05em;
-            padding:3px 10px; border-radius:5px;
-        }
-        .boss-decision.buy  { color:#00c853; background:rgba(0,200,83,0.15); }
-        .boss-decision.sell { color:#ff1744; background:rgba(255,23,68,0.15); }
-        .boss-decision.hold { color:#ff9800; background:rgba(255,152,0,0.15); }
-        .boss-conf  { font-size:11px; color:var(--text-secondary); }
-        .boss-risk  { font-size:9px; font-weight:700; padding:2px 6px; border-radius:3px; text-transform:uppercase; }
-        .risk-low    { background:rgba(0,200,83,0.15);  color:#00c853; }
-        .risk-medium { background:rgba(255,152,0,0.15); color:#ff9800; }
-        .risk-high   { background:rgba(255,23,68,0.15); color:#ff1744; }
-        .boss-reasoning { font-size:11px; color:var(--text-secondary); line-height:1.5; margin-top:6px; }
-        .boss-expand-btn { font-size:10px; color:var(--accent-blue); cursor:pointer; margin-top:4px; display:inline-block; }
-        .boss-expand-btn:hover { text-decoration:underline; }
-
-        /* Trade levels grid */
-        .trade-levels { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin:8px 0; }
-        .tl-item { background:var(--bg-secondary); border-radius:4px; padding:5px 6px; text-align:center; }
-        .tl-label { display:block; font-size:8px; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px; }
-        .tl-val   { display:block; font-size:11px; font-weight:700; color:var(--text-primary); font-family:monospace; }
-        .tl-sl    { color:#ff1744; }
-        .tl-tp    { color:#00c853; }
-
-        /* Timestamp */
-        .card-ts { font-size:9px; color:var(--text-muted); white-space:nowrap; }
-
-        /* Agent summary (key reasoning, no overflow) */
-        .agent-summary { max-height:none !important; overflow:visible !important; }
-
-        /* Refresh Now button */
-        .refresh-agents-btn {
-            font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
-            padding:3px 8px; border-radius:4px; border:1px solid var(--accent-blue);
-            background:transparent; color:var(--accent-blue); cursor:pointer;
-            transition:background 0.15s;
-        }
-        .refresh-agents-btn:hover    { background:rgba(56,139,253,0.15); }
-        .refresh-agents-btn:disabled { opacity:0.5; cursor:not-allowed; }
-
-        /* Decision badge colors */
-        .decision-badge.buy  { background:rgba(0,200,83,0.2);  color:#00c853; }
-        .decision-badge.sell { background:rgba(255,23,68,0.2); color:#ff1744; }
-        .decision-badge.hold { background:rgba(255,152,0,0.2); color:#ff9800; }
-
-        .agent-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-
-        .agent-name-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .agent-icon {
-            width: 18px; height: 18px;
-            border-radius: 4px;
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        .agent-icon svg { width: 10px; height: 10px; }
-
-        .agent-name {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-
-        .agent-pair-badge {
-            font-size: 9px;
-            padding: 1px 5px;
-            border-radius: 3px;
-            background: var(--bg-hover);
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .decision-badge {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .decision-badge.BUY  { background: rgba(63, 185, 80, 0.15); color: var(--green); }
-        .decision-badge.SELL { background: rgba(248, 81, 73, 0.15);  color: var(--red); }
-        .decision-badge.HOLD { background: rgba(227, 179, 65, 0.1);  color: var(--orange); }
-
-        .agent-thought {
-            font-size: 11.5px;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            max-height: 120px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .agent-thought.expanded { max-height: none; }
-
-        .expand-btn {
-            color: var(--accent-blue);
-            font-size: 10px;
-            cursor: pointer;
-            display: inline-block;
-            margin-top: 3px;
-        }
-
-        .confidence-bar {
-            margin-top: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .conf-label { font-size: 9px; color: var(--text-muted); }
-        .conf-track { flex: 1; height: 3px; background: var(--bg-primary); border-radius: 2px; overflow: hidden; }
-        .conf-fill  { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
-
-        /* User input area */
-        #user-input-area {
-            padding: 10px;
-            border-top: 1px solid var(--border);
-        }
-
-        #user-input {
-            width: 100%;
-            height: 72px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            padding: 8px 10px;
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-            resize: none;
-            outline: none;
-            line-height: 1.5;
-            transition: border-color 0.15s;
-        }
-
-        #user-input:focus { border-color: var(--accent-blue); }
-        #user-input::placeholder { color: var(--text-muted); }
-
-        #send-btn {
-            width: 100%;
-            margin-top: 6px;
-            padding: 7px;
-            background: var(--accent-blue);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        #send-btn:hover { background: var(--accent-blue-dim); }
-
-        /* Positions panel */
-        #positions-panel {
-            border-top: 1px solid var(--border);
-            padding: 8px 14px;
-        }
-
-        #positions-list { font-size: 10px; color: var(--text-secondary); }
-        .position-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 3px 0;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        /* Scrollbars */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        .dark-toggle {
-            width: 30px; height: 30px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.15s;
-            flex-shrink: 0;
-        }
-        .dark-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-        .sl-tp-group {
-            display: flex; align-items: center; gap: 8px;
-        }
-        .sl-tp-input {
-            width: 80px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            padding: 5px 8px;
-            color: var(--text-primary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            outline: none;
-        }
-        .sl-tp-input:focus { border-color: var(--accent-blue); }
-        .sl-tp-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-        .sl { border-left: 2px solid var(--red) !important; }
-        .tp { border-left: 2px solid var(--green) !important; }
-
-        /* ── DRAWING TOOLBAR ──────────────────────────────────────── */
-        #drawing-toolbar {
-            width: 44px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 6px 0;
-            gap: 1px;
-            overflow-y: auto;
-            overflow-x: hidden;
-            flex-shrink: 0;
-            z-index: 50;
-        }
-        #drawing-toolbar::-webkit-scrollbar { width: 2px; }
-
-        .tool-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 5px;
-            border: none;
-            background: transparent;
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.12s;
-            flex-shrink: 0;
-            position: relative;
-        }
-        .tool-btn svg { width: 15px; height: 15px; }
-        .tool-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .tool-btn.active { background: rgba(41,98,255,0.15); color: var(--accent-blue); }
-        .tool-btn.toggled { background: rgba(41,98,255,0.1); color: var(--accent-blue); }
-
-        .tool-btn::after {
-            content: attr(title);
-            position: absolute;
-            left: 38px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            white-space: nowrap;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.15s;
-            z-index: 200;
-        }
-        .tool-btn:hover::after { opacity: 1; }
-
-        .tool-sep {
-            width: 26px;
-            height: 1px;
-            background: var(--border);
-            margin: 3px 0;
-            flex-shrink: 0;
-        }
-
-        /* Tool group flyout */
-        .tool-group-wrap { position: relative; }
-        .tool-group-btn { position: relative; }
-        .tool-group-btn .group-arrow {
-            position: absolute;
-            right: 2px; bottom: 2px;
-            font-size: 7px;
-            color: var(--text-muted);
-            line-height: 1;
-        }
-        .tool-group-flyout {
-            position: absolute;
-            left: 40px;
-            top: 0;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 5px;
-            display: none;
-            flex-direction: column;
-            z-index: 500;
-            min-width: 190px;
-            box-shadow: 0 6px 24px rgba(0,0,0,0.15);
-        }
-        .tool-group-flyout.open { display: flex; }
-        .flyout-section-label {
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            padding: 6px 8px 3px;
-        }
-        .flyout-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 8px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-            color: var(--text-secondary);
-            transition: all 0.12s;
-            white-space: nowrap;
-            border: none;
-            background: transparent;
-            text-align: left;
-            width: 100%;
-        }
-        .flyout-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .flyout-item.active { color: var(--accent-blue); background: rgba(41,98,255,0.08); font-weight: 600; }
-        .flyout-item svg { flex-shrink: 0; }
-        .flyout-shortcut {
-            margin-left: auto;
-            font-size: 10px;
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-        }
-        .flyout-sep { height: 1px; background: var(--border); margin: 3px 0; }
-
-        /* Chart type dropdown */
-        .chart-type-wrap { position: relative; }
-        .chart-type-menu {
-            position: absolute;
-            left: 38px;
-            top: 0;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            padding: 5px;
-            display: none;
-            flex-direction: column;
-            gap: 2px;
-            z-index: 300;
-            min-width: 145px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-        }
-        .chart-type-menu.open { display: flex; }
-        .chart-type-option {
-            padding: 7px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border: none;
-            background: transparent;
-            text-align: left;
-            width: 100%;
-            transition: all 0.12s;
-        }
-        .chart-type-option:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .chart-type-option.active { color: var(--accent-blue); font-weight: 600; }
-
-        /* OHLC hover legend overlaid on chart top-left */
-        #ohlc-legend {
-            position: absolute;
-            top: 6px; left: 10px;
-            z-index: 20;
-            display: flex;
-            gap: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: #333;
-            pointer-events: none;
-            background: rgba(255,255,255,0.88);
-            padding: 3px 10px;
-            border-radius: 4px;
-            border: 1px solid #e8e8e8;
-            transition: opacity 0.15s;
-        }
-        [data-theme="dark"] #ohlc-legend {
-            background: rgba(13,17,23,0.9);
-            border-color: #30363d;
-            color: #e6edf3;
-        }
-        #ohlc-legend .ol-lbl { color: #888; margin-right: 1px; }
-        #ohlc-legend .ol-up  { color: #089981; font-weight: 600; }
-        #ohlc-legend .ol-dn  { color: #f23645; font-weight: 600; }
-        #ohlc-legend .ol-val { font-weight: 500; }
-
-        /* SVG Drawing Overlay */
-        #chart-svg {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            overflow: visible;
-            z-index: 10;
-        }
-        #chart-svg.drawing-mode { pointer-events: all; cursor: crosshair; }
-        #chart-svg.eraser-mode  { pointer-events: all; cursor: cell; }
-        .drawing-line   { stroke-linecap: round; }
-        .drawing-rect   { fill: rgba(41,98,255,0.06); }
-        .drawing-fib    { fill: none; }
-        .drawing-label  { font-size: 11px; font-family: 'JetBrains Mono', monospace; }
-        .drawing-measure-box { fill: rgba(245,166,35,0.08); }
-
-        /* Text input overlay */
-        #text-input-overlay {
-            position: absolute;
-            display: none;
-            z-index: 50;
-        }
-        #text-tool-input {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--accent-blue);
-            color: var(--text-primary);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            padding: 3px 7px;
-            border-radius: 4px;
-            outline: none;
-            min-width: 120px;
-        }
-
-        #bb-toggle {
-            padding: 4px 9px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-            background: var(--bg-tertiary);
-            transition: all 0.15s;
-        }
-        #bb-toggle.active { background: rgba(156,108,245,0.15); color: var(--purple); border-color: var(--purple); }
-        #vol-toggle {
-            padding: 4px 9px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-            background: var(--bg-tertiary);
-            transition: all 0.15s;
-        }
-        #vol-toggle.active { background: rgba(41,98,255,0.12); color: var(--accent-blue); border-color: var(--accent-blue); }
-
-        /* ── CANDLE COUNTDOWN TIMER ───────────────────────────────── */
-        #candle-countdown {
-            position: absolute;
-            top: 6px;
-            right: 72px;
-            z-index: 20;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: var(--text-secondary);
-            background: rgba(255,255,255,0.88);
-            padding: 3px 8px;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-            pointer-events: none;
-            user-select: none;
-        }
-        [data-theme="dark"] #candle-countdown {
-            background: rgba(13,17,23,0.88);
-            border-color: #30363d;
-        }
-        #candle-countdown .cd-tf {
-            font-size: 9px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-        #candle-countdown .cd-time {
-            font-weight: 600;
-            color: var(--accent-blue);
-            min-width: 36px;
-            text-align: right;
-        }
-        #candle-countdown .cd-bar {
-            width: 28px;
-            height: 3px;
-            background: var(--border);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        #candle-countdown .cd-bar-fill {
-            height: 100%;
-            border-radius: 2px;
-            background: var(--accent-blue);
-            transition: width 0.9s linear;
-        }
-
-        /* ── WATCHLIST CATEGORIES ─────────────────────────────────── */
-        .watch-category-header {
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            padding: 8px 10px 3px;
-            margin-top: 2px;
-        }
-        .watch-item .watch-icon {
-            font-size: 10px;
-        }
-
-        /* ── BACKTEST PANEL ────────────────────────────────────────── */
-        #backtest-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 1000;
-            background: rgba(0,0,0,0.55);
-            backdrop-filter: blur(2px);
-            -webkit-backdrop-filter: blur(2px);
-            align-items: flex-end;
-        }
-        #backtest-overlay.open { display: flex; }
-
-        #backtest-panel {
-            width: 100%;
-            max-height: 82vh;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border);
-            border-radius: 12px 12px 0 0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 -8px 32px rgba(0,0,0,0.28);
-            animation: slideUpPanel 0.22s ease;
-        }
-        @keyframes slideUpPanel {
-            from { transform: translateY(40px); opacity: 0.6; }
-            to   { transform: translateY(0);    opacity: 1; }
-        }
-
-        #bt-panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 11px 20px;
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-            gap: 12px;
-        }
-        #bt-panel-header-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        #bt-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.09em;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-        #bt-pair-select {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            padding: 5px 10px;
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-        #bt-pair-select:focus { border-color: var(--accent-blue); }
-        #bt-status {
-            font-size: 11px;
-            color: var(--text-muted);
-            font-style: italic;
-        }
-        #bt-close-btn {
-            width: 28px; height: 28px;
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 16px;
-            line-height: 1;
-            flex-shrink: 0;
-            transition: all 0.15s;
-        }
-        #bt-close-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-        #bt-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-        #bt-body::-webkit-scrollbar { width: 4px; }
-        #bt-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        /* Summary cards */
-        #bt-cards {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-        }
-        .bt-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 14px 18px;
-            text-align: center;
-        }
-        .bt-card-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-        .bt-card-value {
-            font-size: 30px;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--text-primary);
-            line-height: 1;
-        }
-        .bt-card-value.good { color: var(--green); }
-        .bt-card-value.bad  { color: var(--red); }
-
-        /* Signal distribution bar */
-        .bt-section {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 14px 16px;
-        }
-        .bt-section-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            margin-bottom: 10px;
-        }
-        #bt-signal-bar {
-            height: 32px;
-            border-radius: 6px;
-            overflow: hidden;
-            display: flex;
-            width: 100%;
-        }
-        .bt-bar-seg {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
-            color: white;
-            transition: width 0.6s ease;
-            overflow: hidden;
-            white-space: nowrap;
-            min-width: 0;
-        }
-        #bt-bar-buy  { background: var(--green); }
-        #bt-bar-sell { background: var(--red); }
-        #bt-bar-hold { background: var(--text-muted); }
-
-        /* Results table */
-        #bt-table-section {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        #bt-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        #bt-table thead tr { background: var(--bg-hover); }
-        #bt-table th {
-            padding: 9px 14px;
-            text-align: left;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--border);
-        }
-        #bt-table td {
-            padding: 7px 14px;
-            border-bottom: 1px solid var(--border-light);
-            color: var(--text-primary);
-            font-family: 'JetBrains Mono', monospace;
-        }
-        #bt-table tr:last-child td { border-bottom: none; }
-        #bt-table tbody tr:hover td { background: rgba(56,139,253,0.05); }
-        .bt-row-correct td { background: rgba(8,153,129,0.07) !important; }
-        .bt-row-wrong td   { background: rgba(242,54,69,0.07) !important; }
-        .bt-sig-buy  { color: var(--green); font-weight: 700; }
-        .bt-sig-sell { color: var(--red); font-weight: 700; }
-        .bt-sig-hold { color: var(--text-muted); }
-        .bt-result-win  { color: var(--green); font-weight: 600; }
-        .bt-result-loss { color: var(--red); font-weight: 600; }
-        .bt-result-na   { color: var(--text-muted); }
-
-        /* Header trigger button */
-        #bt-open-btn {
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-            background: var(--bg-tertiary);
-            transition: all 0.15s;
-            white-space: nowrap;
-        }
-        #bt-open-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
-        #bt-open-btn.active { background: rgba(41,98,255,0.12); color: var(--accent-blue); border-color: var(--accent-blue); }
-
-        /* ── SIDEBAR LAYOUT ───────────────────────────────────── */
-        #app-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
-        #sidebar { width: 200px; min-width: 200px; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px 0; z-index: 200; }
-        #sidebar-logo { padding: 8px 16px 16px; font-weight: 700; font-size: 13px; color: var(--accent-blue); border-bottom: 1px solid var(--border); margin-bottom: 8px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; color: var(--text-secondary); font-size: 13px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; user-select: none; }
-        .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .nav-item.active { color: var(--accent-blue); border-left-color: var(--accent-blue); background: rgba(41,98,255,0.08); }
-        .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-        .nav-section-label { font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 8px 16px 4px; letter-spacing: 0.08em; text-transform: uppercase; }
-        #sidebar-bottom { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); }
-        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        #main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-        .page { display: none; flex: 1; overflow: hidden; }
-        .page.active { display: flex; flex-direction: column; }
-        .pt-stat-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
-        .pt-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; }
-        .pt-stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
-        .pt-stat-value.green { color: var(--green); }
-        .pt-stat-value.red { color: var(--red); }
-        .pt-table-wrap { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 16px; }
-        .pt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .pt-table th { padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-muted); background: var(--bg-tertiary); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-        .pt-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
-        .pt-table tr:last-child td { border-bottom: none; }
-        .pt-table tr:hover td { background: var(--bg-hover); }
-        .pt-win td { background: rgba(8,153,129,0.05); }
-        .pt-loss td { background: rgba(242,54,69,0.05); }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .badge-buy { background: rgba(8,153,129,0.15); color: var(--green); }
-        .badge-sell { background: rgba(242,54,69,0.15); color: var(--red); }
-        .badge-win { background: rgba(8,153,129,0.15); color: var(--green); }
-        .badge-loss { background: rgba(242,54,69,0.15); color: var(--red); }
-        .badge-open { background: rgba(41,98,255,0.15); color: var(--accent-blue); }
-        .badge-expired { background: rgba(120,123,134,0.15); color: var(--text-secondary); }
-        .agent-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
-        .agent-name { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-        .agent-role { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
-        .agent-stat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-light); }
-        .agent-stat-row:last-child { border-bottom: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategic War Room</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --bg2:     #161b22;
+      --bg3:     #21262d;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --blue:    #2962ff;
+      --green:   #089981;
+      --red:     #f23645;
+      --orange:  #f5a623;
+      --purple:  #9c6cf5;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: 200px;
+      min-width: 200px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 0;
+    }
+    .logo {
+      padding: 0 16px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 6px 16px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active {
+      color: var(--blue);
+      border-left-color: var(--blue);
+      background: rgba(41,98,255,0.08);
+    }
+    .nav-item svg { width:15px; height:15px; flex-shrink:0; }
+    #sidebar-footer {
+      margin-top: auto;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── MAIN ── */
+    #main { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+    .page { display:none; flex:1; overflow-y:auto; padding:24px; }
+    .page.active { display:block; }
+
+    /* ── COMPONENTS ── */
+    .page-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-value.green { color: var(--green); }
+    .card-value.red   { color: var(--red); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+
+    /* ── TOKEN BAR ── */
+    .token-row { margin-bottom: 10px; }
+    .token-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .token-track { background: var(--bg3); border-radius: 4px; height: 6px; overflow:hidden; }
+    .token-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .token-info { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* ── TABLE ── */
+    .tbl-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--bg3);
+      font-size: 11px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(48,54,61,0.5);
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .row-win td { background: rgba(8,153,129,0.06); }
+    .row-loss td { background: rgba(242,54,69,0.06); }
+
+    /* ── BADGES ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .b-buy  { background: rgba(8,153,129,0.15); color: var(--green); }
+    .b-sell { background: rgba(242,54,69,0.15);  color: var(--red); }
+    .b-win  { background: rgba(8,153,129,0.15); color: var(--green); }
+    .b-loss { background: rgba(242,54,69,0.15);  color: var(--red); }
+    .b-open { background: rgba(41,98,255,0.15);  color: var(--blue); }
+    .b-exp  { background: rgba(139,148,158,0.15);color: var(--muted); }
+
+    /* ── SECTION TITLE ── */
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 20px 0 12px;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .signal-bar {
+      display: flex;
+      height: 20px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .bar-buy  { background: var(--green); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600; }
+    .bar-sell { background: var(--red);   display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600; }
+    .bar-hold { background: var(--bg3);   display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); font-weight:600; }
+
+    /* ── BUTTON ── */
+    .btn {
+      padding: 6px 14px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .btn:hover { opacity: 0.85; }
+
+    /* ── EMPTY STATE ── */
+    .empty {
+      text-align: center;
+      padding: 30px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
 </head>
 <body>
-<div id="app-layout">
+
+<!-- SIDEBAR -->
 <nav id="sidebar">
-  <div id="sidebar-logo">⚔️ War Room</div>
-  <div class="nav-section-label">Navigation</div>
-  <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+  <div class="logo">⚔️ War Room</div>
+  <div class="nav-label">Navigation</div>
+
+  <div class="nav-item active" id="nav-dashboard" onclick="show('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    </svg>
     Live Dashboard
   </div>
-  <div class="nav-item" onclick="showPage('paper')" id="nav-paper">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+
+  <div class="nav-item" id="nav-paper" onclick="show('paper')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 11l3 3L22 4"/>
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </svg>
     Paper Trades
   </div>
-  <div class="nav-item" onclick="showPage('backtest')" id="nav-backtest">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+
+  <div class="nav-item" id="nav-backtest" onclick="show('backtest')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
     Backtest
   </div>
-  <div class="nav-item" onclick="showPage('agents')" id="nav-agents">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+
+  <div class="nav-item" id="nav-agents" onclick="show('agents')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="8" r="4"/>
+      <path d="M20 21a8 8 0 10-16 0"/>
+    </svg>
     Agents
   </div>
-  <div id="sidebar-bottom">
-    <span class="status-dot"></span>
-    <span style="font-size:11px;color:var(--text-secondary)">System Live</span>
+
+  <div id="sidebar-footer">
+    <div class="dot"></div>
+    System Live
   </div>
 </nav>
-<div id="main-content">
 
-<div class="page active" id="page-dashboard">
-<!-- ══════════════ HEADER ══════════════ -->
-<header id="header">
-    <div class="logo">
-        <div class="logo-icon">
-            <i data-lucide="shield"></i>
-        </div>
-        WAR ROOM
-    </div>
-
-    <div class="divider-v"></div>
-
-    <!-- Pair tabs -->
-    <div class="pair-tabs" id="pair-tabs">
-        <div class="pair-tab active" data-pair="EUR/USD" onclick="selectPair('EUR/USD', this)">
-            EUR/USD
-            <span class="pair-change up" id="change-EUR-USD">+0.00%</span>
-        </div>
-        <div class="pair-tab" data-pair="USD/JPY" onclick="selectPair('USD/JPY', this)">
-            USD/JPY
-            <span class="pair-change" id="change-USD-JPY">0.00%</span>
-        </div>
-        <div class="pair-tab" data-pair="BTC/USD" onclick="selectPair('BTC/USD', this)">
-            BTC/USD
-            <span class="pair-change" id="change-BTC-USD">0.00%</span>
-        </div>
-    </div>
-
-    <div class="divider-v"></div>
-
-    <span id="header-price" class="header-price neutral">—</span>
-    <span id="header-change" class="header-change up" style="display:none"></span>
-
-    <!-- Timeframes -->
-    <div class="timeframe-group">
-        <button class="tf-btn" onclick="setTimeframe('1M', this)">1m</button>
-        <button class="tf-btn" onclick="setTimeframe('5M', this)">5m</button>
-        <button class="tf-btn" onclick="setTimeframe('15M', this)">15m</button>
-        <button class="tf-btn" onclick="setTimeframe('1H', this)">1H</button>
-        <button class="tf-btn" onclick="setTimeframe('4H', this)">4H</button>
-        <button class="tf-btn active" onclick="setTimeframe('1D', this)">1D</button>
-        <button class="tf-btn" onclick="setTimeframe('1W', this)">1W</button>
-    </div>
-
-    <div class="divider-v"></div>
-
-    <!-- Chart type buttons (always visible) -->
-    <div class="timeframe-group">
-        <button class="tf-btn ct-btn active" id="ct-candlestick" title="Candlestick" onclick="setChartType('candlestick',this)">Candle</button>
-        <button class="tf-btn ct-btn" id="ct-bar"        title="Bar chart"    onclick="setChartType('bar',this)">Bar</button>
-        <button class="tf-btn ct-btn" id="ct-line"       title="Line chart"   onclick="setChartType('line',this)">Line</button>
-        <button class="tf-btn ct-btn" id="ct-heikinashi" title="Heikin-Ashi"  onclick="setChartType('heikinashi',this)">HA</button>
-    </div>
-
-    <div class="divider-v"></div>
-    <button id="bt-open-btn" onclick="openBacktest()">Backtest</button>
-
-    <div class="divider-v"></div>
-
-    <div id="conn-status">
-        <div class="conn-dot"></div>
-        <span id="conn-text">OFFLINE</span>
-    </div>
-    <button class="dark-toggle" id="dark-toggle" title="Toggle dark mode" onclick="toggleDarkMode()">
-        <i data-lucide="moon" style="width:14px;height:14px"></i>
-    </button>
-</header>
-
-<!-- ══════════════ BODY ══════════════ -->
+<!-- MAIN CONTENT -->
 <div id="main">
 
-    <!-- LEFT SIDEBAR -->
-    <aside id="left-sidebar">
-        <!-- Sentiment -->
-        <div class="sidebar-section">
-            <div class="sidebar-label">Market Sentiment</div>
-            <div class="sentiment-card">
-                <div class="sentiment-header">
-                    <span class="sentiment-title">Fear & Greed Index</span>
-                    <span id="sentiment-value">–</span>
-                </div>
-                <div class="sentiment-bar-track">
-                    <div id="sentiment-bar" style="width:50%"></div>
-                </div>
-                <p id="sentiment-label">Loading...</p>
-            </div>
-        </div>
+  <!-- ═══ PAGE: LIVE DASHBOARD ═══ -->
+  <div class="page active" id="page-dashboard">
 
-        <!-- Watchlist -->
-        <div class="sidebar-section" style="border-bottom:none; flex:1; overflow-y:auto; padding-bottom:0; padding-left:0; padding-right:0;">
-            <div class="sidebar-label" style="padding-left:12px;">Watchlist</div>
-            <div id="watchlist">
-                <!-- FOREX MAJOR -->
-                <div class="watch-category-header">Forex Major</div>
-                <div class="watch-item active" data-pair="EUR/USD" onclick="selectPair('EUR/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(56,139,253,0.12);color:var(--accent-blue)">€$</div><div><div class="watch-name">EUR/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-EUR-USD">–</div><div class="watch-change" id="wchg-EUR-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="GBP/USD" onclick="selectPair('GBP/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(56,139,253,0.1);color:var(--accent-blue)">£$</div><div><div class="watch-name">GBP/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-GBP-USD">–</div><div class="watch-change" id="wchg-GBP-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="USD/JPY" onclick="selectPair('USD/JPY',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(248,81,73,0.12);color:var(--red)">$¥</div><div><div class="watch-name">USD/JPY</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-USD-JPY">–</div><div class="watch-change" id="wchg-USD-JPY">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="USD/CHF" onclick="selectPair('USD/CHF',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(248,81,73,0.1);color:var(--red)">$₣</div><div><div class="watch-name">USD/CHF</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-USD-CHF">–</div><div class="watch-change" id="wchg-USD-CHF">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="AUD/USD" onclick="selectPair('AUD/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(56,139,253,0.08);color:var(--accent-blue)">A$</div><div><div class="watch-name">AUD/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-AUD-USD">–</div><div class="watch-change" id="wchg-AUD-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="NZD/USD" onclick="selectPair('NZD/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(56,139,253,0.07);color:var(--accent-blue)">N$</div><div><div class="watch-name">NZD/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-NZD-USD">–</div><div class="watch-change" id="wchg-NZD-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="USD/CAD" onclick="selectPair('USD/CAD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(248,81,73,0.08);color:var(--red)">$C</div><div><div class="watch-name">USD/CAD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-USD-CAD">–</div><div class="watch-change" id="wchg-USD-CAD">–</div></div>
-                </div>
-
-                <!-- FOREX CROSS -->
-                <div class="watch-category-header">Forex Cross</div>
-                <div class="watch-item" data-pair="EUR/GBP" onclick="selectPair('EUR/GBP',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(156,108,245,0.12);color:var(--purple)">€£</div><div><div class="watch-name">EUR/GBP</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-EUR-GBP">–</div><div class="watch-change" id="wchg-EUR-GBP">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="EUR/JPY" onclick="selectPair('EUR/JPY',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(156,108,245,0.1);color:var(--purple)">€¥</div><div><div class="watch-name">EUR/JPY</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-EUR-JPY">–</div><div class="watch-change" id="wchg-EUR-JPY">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="GBP/JPY" onclick="selectPair('GBP/JPY',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(156,108,245,0.08);color:var(--purple)">£¥</div><div><div class="watch-name">GBP/JPY</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-GBP-JPY">–</div><div class="watch-change" id="wchg-GBP-JPY">–</div></div>
-                </div>
-
-                <!-- COMMODITIES -->
-                <div class="watch-category-header">Commodities</div>
-                <div class="watch-item" data-pair="XAU/USD" onclick="selectPair('XAU/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(227,179,65,0.15);color:var(--orange)">Au</div><div><div class="watch-name">XAU/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-XAU-USD">–</div><div class="watch-change" id="wchg-XAU-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="XAG/USD" onclick="selectPair('XAG/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(183,183,183,0.15);color:#888">Ag</div><div><div class="watch-name">XAG/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-XAG-USD">–</div><div class="watch-change" id="wchg-XAG-USD">–</div></div>
-                </div>
-
-                <!-- CRYPTO -->
-                <div class="watch-category-header">Crypto</div>
-                <div class="watch-item" data-pair="BTC/USD" onclick="selectPair('BTC/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(227,179,65,0.12);color:var(--orange)">₿</div><div><div class="watch-name">BTC/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-BTC-USD">–</div><div class="watch-change" id="wchg-BTC-USD">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="ETH/USD" onclick="selectPair('ETH/USD',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(100,100,200,0.12);color:#6464c8">Ξ</div><div><div class="watch-name">ETH/USD</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-ETH-USD">–</div><div class="watch-change" id="wchg-ETH-USD">–</div></div>
-                </div>
-
-                <!-- INDIA -->
-                <div class="watch-category-header">India</div>
-                <div class="watch-item" data-pair="USD/INR" onclick="selectPair('USD/INR',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(255,153,0,0.12);color:#f90">$₹</div><div><div class="watch-name">USD/INR</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-USD-INR">–</div><div class="watch-change" id="wchg-USD-INR">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="EUR/INR" onclick="selectPair('EUR/INR',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(255,153,0,0.1);color:#f90">€₹</div><div><div class="watch-name">EUR/INR</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-EUR-INR">–</div><div class="watch-change" id="wchg-EUR-INR">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="GBP/INR" onclick="selectPair('GBP/INR',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(255,153,0,0.08);color:#f90">£₹</div><div><div class="watch-name">GBP/INR</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-GBP-INR">–</div><div class="watch-change" id="wchg-GBP-INR">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="NIFTY50" onclick="selectPair('NIFTY50',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(8,153,129,0.12);color:var(--green)">N50</div><div><div class="watch-name">NIFTY 50</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-NIFTY50">–</div><div class="watch-change" id="wchg-NIFTY50">–</div></div>
-                </div>
-                <div class="watch-item" data-pair="SENSEX" onclick="selectPair('SENSEX',null)">
-                    <div class="watch-item-left"><div class="watch-icon" style="background:rgba(8,153,129,0.1);color:var(--green)">SX</div><div><div class="watch-name">SENSEX</div></div></div>
-                    <div class="watch-item-right"><div class="watch-price" id="price-SENSEX">–</div><div class="watch-change" id="wchg-SENSEX">–</div></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Alerts -->
-        <div id="alerts-container"></div>
-    </aside>
-
-    <!-- DRAWING TOOLBAR -->
-    <div id="drawing-toolbar">
-
-        <!-- Cursor -->
-        <button class="tool-btn active" id="tool-cursor" title="Cursor (Esc)" onclick="setDrawingTool('cursor',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3.5 2L3.5 12.5L6 9.5L8.2 13.8L9.8 13L7.6 8.8L11.5 8.2Z" fill="currentColor" stroke="none"/>
-            </svg>
-        </button>
-
-        <!-- Chart Type -->
-        <div class="chart-type-wrap">
-            <button class="tool-btn" id="tool-charttype" title="Chart Type" onclick="toggleChartTypeMenu(event)">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                    <line x1="3" y1="2" x2="3" y2="13"/><rect x="1.5" y="5" width="3" height="4" rx="0.5"/>
-                    <line x1="8" y1="1" x2="8" y2="12"/><rect x="6.5" y="3" width="3" height="4.5" rx="0.5"/>
-                    <line x1="13" y1="3" x2="13" y2="14"/><rect x="11.5" y="6" width="3" height="4.5" rx="0.5"/>
-                </svg>
-            </button>
-            <div class="chart-type-menu" id="chart-type-menu">
-                <button class="chart-type-option active" data-ctype="candlestick" onclick="setChartType('candlestick',this)">
-                    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="4" y1="1" x2="4" y2="13"/><rect x="2" y="4" width="4" height="6" rx="0.5"/></svg>Candlestick
-                </button>
-                <button class="chart-type-option" data-ctype="bar" onclick="setChartType('bar',this)">
-                    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="5" y1="2" x2="5" y2="12"/><line x1="2" y1="4" x2="5" y2="4"/><line x1="5" y1="9" x2="8" y2="9"/></svg>Bar
-                </button>
-                <button class="chart-type-option" data-ctype="line" onclick="setChartType('line',this)">
-                    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,11 5,6 8,8 13,3"/></svg>Line
-                </button>
-                <button class="chart-type-option" data-ctype="area" onclick="setChartType('area',this)">
-                    <svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.3"><polygon points="1,12 5,7 8,9 13,4 13,12" fill="currentColor" opacity="0.25"/><polyline points="1,12 5,7 8,9 13,4" fill="none"/></svg>Area
-                </button>
-                <button class="chart-type-option" data-ctype="heikinashi" onclick="setChartType('heikinashi',this)">
-                    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="4" y1="1" x2="4" y2="13"/><rect x="2" y="4" width="4" height="5" rx="0.5" fill="currentColor"/></svg>Heikin-Ashi
-                </button>
-            </div>
-        </div>
-
-        <div class="tool-sep"></div>
-
-        <!-- LINES GROUP -->
-        <div class="tool-group-wrap">
-            <button class="tool-btn tool-group-btn" id="tool-lines-group" title="Lines" onclick="toggleToolGroup('lines', event)">
-                <svg id="lines-group-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                    <line x1="3" y1="13" x2="13" y2="3"/>
-                    <circle cx="3" cy="13" r="1.5" fill="currentColor" stroke="none"/>
-                    <circle cx="13" cy="3" r="1.5" fill="currentColor" stroke="none"/>
-                </svg>
-                <span class="group-arrow">▸</span>
-            </button>
-            <div class="tool-group-flyout" id="flyout-lines">
-                <div class="flyout-section-label">Lines</div>
-                <button class="flyout-item active" id="flyout-trendline" onclick="selectGroupTool('trendline','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="13" x2="13" y2="3"/><circle cx="3" cy="13" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="3" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Trendline<span class="flyout-shortcut">Alt+T</span>
-                </button>
-                <button class="flyout-item" id="flyout-ray" onclick="selectGroupTool('ray','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="13" x2="14" y2="3"/><circle cx="3" cy="13" r="1.5" fill="currentColor" stroke="none"/><line x1="11" y1="3" x2="14" y2="3" stroke-width="1" opacity="0.4"/></svg>
-                    Ray
-                </button>
-                <button class="flyout-item" id="flyout-extended-line" onclick="selectGroupTool('extended-line','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="1" y1="14" x2="15" y2="2" stroke-dasharray="2,1.5"/></svg>
-                    Extended Line
-                </button>
-                <button class="flyout-item" id="flyout-trend-angle" onclick="selectGroupTool('trend-angle','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="12" x2="13" y2="4"/><path d="M2 12 Q5 12 4.5 9.5" stroke-width="1" fill="none"/></svg>
-                    Trend Angle
-                </button>
-                <div class="flyout-sep"></div>
-                <button class="flyout-item" id="flyout-hline" onclick="selectGroupTool('hline','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/><circle cx="5" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Horizontal Line<span class="flyout-shortcut">Alt+H</span>
-                </button>
-                <button class="flyout-item" id="flyout-hray" onclick="selectGroupTool('hray','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="8" x2="14" y2="8"/><circle cx="3" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Horizontal Ray<span class="flyout-shortcut">Alt+J</span>
-                </button>
-                <button class="flyout-item" id="flyout-vline" onclick="selectGroupTool('vline','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><circle cx="8" cy="5" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Vertical Line<span class="flyout-shortcut">Alt+V</span>
-                </button>
-                <button class="flyout-item" id="flyout-crossline" onclick="selectGroupTool('crossline','lines',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8" stroke-dasharray="3,2"/><line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="3,2"/></svg>
-                    Cross Line<span class="flyout-shortcut">Alt+C</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- CHANNELS GROUP -->
-        <div class="tool-group-wrap">
-            <button class="tool-btn tool-group-btn" id="tool-channels-group" title="Channels" onclick="toggleToolGroup('channels', event)">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                    <line x1="2" y1="5" x2="14" y2="5"/>
-                    <line x1="2" y1="11" x2="14" y2="11"/>
-                    <polygon points="2,5 14,5 14,11 2,11" fill="currentColor" opacity="0.08" stroke="none"/>
-                </svg>
-                <span class="group-arrow">▸</span>
-            </button>
-            <div class="tool-group-flyout" id="flyout-channels">
-                <div class="flyout-section-label">Channels</div>
-                <button class="flyout-item" id="flyout-parallel-channel" onclick="selectGroupTool('parallel-channel','channels',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="10" x2="14" y2="10" stroke-dasharray="3,2"/><polygon points="2,4 14,4 14,10 2,10" fill="currentColor" opacity="0.1" stroke="none"/></svg>
-                    Parallel Channel
-                </button>
-                <button class="flyout-item" id="flyout-regression-trend" onclick="selectGroupTool('regression-trend','channels',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="2" y1="12" x2="14" y2="4"/><line x1="2" y1="9" x2="14" y2="1" stroke-dasharray="3,2" opacity="0.6"/><line x1="2" y1="15" x2="14" y2="7" stroke-dasharray="3,2" opacity="0.6"/></svg>
-                    Regression Trend
-                </button>
-                <button class="flyout-item" id="flyout-flat-top" onclick="selectGroupTool('flat-top','channels',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="11" x2="14" y2="8" stroke-dasharray="3,2"/><polygon points="2,4 14,4 14,8 2,11" fill="currentColor" opacity="0.1" stroke="none"/></svg>
-                    Flat Top / Bottom
-                </button>
-            </div>
-        </div>
-
-        <!-- PITCHFORKS GROUP -->
-        <div class="tool-group-wrap">
-            <button class="tool-btn tool-group-btn" id="tool-pitchforks-group" title="Pitchforks" onclick="toggleToolGroup('pitchforks', event)">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                    <line x1="8" y1="12" x2="14" y2="4"/>
-                    <line x1="8" y1="12" x2="14" y2="9"/>
-                    <line x1="8" y1="12" x2="14" y2="14"/>
-                    <line x1="3" y1="6" x2="8" y2="12"/>
-                </svg>
-                <span class="group-arrow">▸</span>
-            </button>
-            <div class="tool-group-flyout" id="flyout-pitchforks">
-                <div class="flyout-section-label">Pitchforks</div>
-                <button class="flyout-item" id="flyout-pitchfork" onclick="selectGroupTool('pitchfork','pitchforks',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="3" y1="8" x2="14" y2="3"/><line x1="3" y1="8" x2="14" y2="13"/><line x1="3" y1="8" x2="14" y2="8"/><circle cx="3" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Pitchfork
-                </button>
-                <button class="flyout-item" id="flyout-schiff-pitchfork" onclick="selectGroupTool('schiff-pitchfork','pitchforks',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="5" y1="9" x2="14" y2="3"/><line x1="5" y1="9" x2="14" y2="13"/><line x1="5" y1="9" x2="14" y2="8"/><circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Schiff Pitchfork
-                </button>
-                <button class="flyout-item" id="flyout-modified-schiff" onclick="selectGroupTool('modified-schiff','pitchforks',this)">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="4" y1="8" x2="14" y2="3"/><line x1="4" y1="8" x2="14" y2="13"/><line x1="3" y1="6" x2="14" y2="8"/><circle cx="3" cy="10" r="1.5" fill="currentColor" stroke="none"/></svg>
-                    Modified Schiff
-                </button>
-            </div>
-        </div>
-
-        <div class="tool-sep"></div>
-
-        <!-- Rectangle -->
-        <button class="tool-btn" id="tool-rectangle" title="Rectangle" onclick="setDrawingTool('rectangle',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2.5" y="4" width="11" height="8" rx="1"/>
-            </svg>
-        </button>
-
-        <!-- Fibonacci -->
-        <button class="tool-btn" id="tool-fibonacci" title="Fibonacci Retracement" onclick="setDrawingTool('fibonacci',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                <line x1="2" y1="3" x2="14" y2="3"/>
-                <line x1="2" y1="6" x2="14" y2="6"/>
-                <line x1="2" y1="9" x2="14" y2="9"/>
-                <line x1="2" y1="11.5" x2="14" y2="11.5"/>
-                <line x1="2" y1="14" x2="14" y2="14"/>
-                <line x1="3" y1="3" x2="13" y2="14" stroke-dasharray="2,1.5"/>
-            </svg>
-        </button>
-
-        <div class="tool-sep"></div>
-
-        <!-- Text -->
-        <button class="tool-btn" id="tool-text" title="Text Annotation" onclick="setDrawingTool('text',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="2" y1="4" x2="14" y2="4"/>
-                <line x1="8" y1="4" x2="8" y2="13"/>
-                <line x1="5.5" y1="13" x2="10.5" y2="13"/>
-            </svg>
-        </button>
-
-        <!-- Note -->
-        <button class="tool-btn" id="tool-note" title="Note" onclick="setDrawingTool('note',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                <circle cx="8" cy="8" r="5.5"/>
-                <path d="M5.5 9.5 C6.5 11 9.5 11 10.5 9.5"/>
-                <circle cx="6" cy="7" r="0.8" fill="currentColor" stroke="none"/>
-                <circle cx="10" cy="7" r="0.8" fill="currentColor" stroke="none"/>
-            </svg>
-        </button>
-
-        <!-- Measure -->
-        <button class="tool-btn" id="tool-measure" title="Measure Tool" onclick="setDrawingTool('measure',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <line x1="3" y1="5" x2="3" y2="11"/>
-                <line x1="13" y1="5" x2="13" y2="11"/>
-                <line x1="3" y1="8" x2="13" y2="8"/>
-                <line x1="3" y1="8" x2="5.5" y2="6"/><line x1="3" y1="8" x2="5.5" y2="10"/>
-                <line x1="13" y1="8" x2="10.5" y2="6"/><line x1="13" y1="8" x2="10.5" y2="10"/>
-            </svg>
-        </button>
-
-        <div class="tool-sep"></div>
-
-        <!-- Zoom -->
-        <button class="tool-btn" id="tool-zoom" title="Zoom Selection" onclick="setDrawingTool('zoom',this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <circle cx="6.5" cy="6.5" r="4.5"/>
-                <line x1="10" y1="10" x2="14" y2="14"/>
-                <line x1="4.5" y1="6.5" x2="8.5" y2="6.5"/>
-                <line x1="6.5" y1="4.5" x2="6.5" y2="8.5"/>
-            </svg>
-        </button>
-
-        <!-- Magnet -->
-        <button class="tool-btn" id="tool-magnet" title="Magnet Snap" onclick="toggleMagnet(this)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 3 A5 5 0 0 1 11 3"/>
-                <line x1="3.5" y1="3" x2="3.5" y2="7"/><line x1="12.5" y1="3" x2="12.5" y2="7"/>
-                <line x1="2" y1="7" x2="5" y2="7"/><line x1="11" y1="7" x2="14" y2="7"/>
-            </svg>
-        </button>
-
-        <div class="tool-sep"></div>
-
-        <!-- Lock Drawings -->
-        <button class="tool-btn" id="tool-lock" title="Lock Drawings" onclick="toggleLockDrawings(this)">
-            <i data-lucide="lock" style="width:14px;height:14px"></i>
-        </button>
-
-        <!-- Show/Hide Drawings -->
-        <button class="tool-btn" id="tool-eye" title="Show / Hide Drawings" onclick="toggleDrawingsVisible(this)">
-            <i data-lucide="eye" style="width:14px;height:14px"></i>
-        </button>
-
-        <!-- Delete All -->
-        <button class="tool-btn" id="tool-trash" title="Delete All Drawings" onclick="deleteAllDrawings()">
-            <i data-lucide="trash-2" style="width:14px;height:14px"></i>
-        </button>
-
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div>
+        <div class="page-title" style="margin-bottom:2px;">⚔️ Strategic War Room</div>
+        <div style="font-size:11px;color:var(--muted)" id="last-updated">—</div>
+      </div>
+      <button class="btn" onclick="loadDashboard()">Refresh</button>
     </div>
 
-    <!-- CENTER PANEL -->
-    <section id="center">
-        <!-- Indicator bar -->
-        <div id="indicator-bar">
-            <div class="ind-item">
-                <span class="ind-label">EMA-20</span>
-                <span class="ind-value default" id="ind-ema20">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">EMA-50</span>
-                <span class="ind-value default" id="ind-ema50">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">RSI(14)</span>
-                <span class="ind-value neutral" id="ind-rsi">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">MACD</span>
-                <span class="ind-value default" id="ind-macd">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">Trend</span>
-                <span class="ind-value default" id="ind-trend">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">Signal</span>
-                <span class="ind-value default" id="ind-signal">Waiting for agents...</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">BB%</span>
-                <span class="ind-value default" id="ind-bb-pct">–</span>
-            </div>
-            <div class="ind-item">
-                <span class="ind-label">ATR</span>
-                <span class="ind-value default" id="ind-atr">–</span>
-            </div>
-            <div style="margin-left:auto; display:flex; gap:6px; align-items:center;">
-                <button id="bb-toggle" onclick="toggleBB(this)">BB</button>
-                <button id="vol-toggle" onclick="toggleVol(this)">Vol</button>
-            </div>
+    <!-- Token Usage -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-label">Token Usage Today</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px;">
+        <div class="token-row">
+          <div class="token-label">Groq (Free 500K)</div>
+          <div class="token-track"><div class="token-fill" id="groq-fill" style="background:var(--blue);width:0%"></div></div>
+          <div class="token-info" id="groq-info">Loading...</div>
         </div>
-
-        <!-- Chart -->
-        <div id="chart-wrapper">
-            <div id="chart-container"></div>
-            <!-- OHLC hover legend -->
-            <div id="ohlc-legend" style="opacity:0">
-                <span><span class="ol-lbl">O</span><span class="ol-val" id="ol-o">–</span></span>
-                <span><span class="ol-lbl">H</span><span class="ol-val" id="ol-h">–</span></span>
-                <span><span class="ol-lbl">L</span><span class="ol-val" id="ol-l">–</span></span>
-                <span><span class="ol-lbl">C</span><span class="ol-val" id="ol-c">–</span></span>
-                <span id="ol-chg" class="ol-val">–</span>
-            </div>
-            <!-- Candle Countdown Timer -->
-            <div id="candle-countdown">
-                <span class="cd-tf" id="cd-tf">1D</span>
-                <div class="cd-bar"><div class="cd-bar-fill" id="cd-bar-fill" style="width:50%"></div></div>
-                <span class="cd-time" id="cd-time">00:00</span>
-            </div>
-            <!-- Drawing SVG Overlay -->
-            <svg id="chart-svg"></svg>
-            <!-- Text input for text tool -->
-            <div id="text-input-overlay">
-                <input id="text-tool-input" type="text" placeholder="Type annotation...">
-            </div>
-            <div id="chart-loading">
-                <div class="spinner"></div>
-                <span style="font-size:12px;">Loading chart data...</span>
-            </div>
+        <div class="token-row">
+          <div class="token-label">OpenRouter (Unlimited)</div>
+          <div class="token-track"><div class="token-fill" id="or-fill" style="background:var(--purple);width:2%"></div></div>
+          <div class="token-info" id="or-info">Loading...</div>
         </div>
-
-        <!-- News ticker -->
-        <div id="news-ticker">
-            <div class="news-ticker-inner" id="ticker-content">
-                📡 Connecting to financial news feed...
-            </div>
+        <div class="token-row">
+          <div class="token-label">Gemini (Free 1M)</div>
+          <div class="token-track"><div class="token-fill" id="gem-fill" style="background:var(--orange);width:0%"></div></div>
+          <div class="token-info" id="gem-info">Loading...</div>
         </div>
-
-        <!-- Trade bar -->
-        <div id="trade-bar">
-            <span class="trade-label">Size</span>
-            <input type="number" id="amount-input" value="1000" min="100" step="100">
-            <div class="sl-tp-group">
-                <span class="sl-tp-label">SL</span>
-                <input type="number" id="sl-input" class="sl-tp-input sl" placeholder="Stop Loss" step="0.0001">
-            </div>
-            <div class="sl-tp-group">
-                <span class="sl-tp-label">TP</span>
-                <input type="number" id="tp-input" class="sl-tp-input tp" placeholder="Take Profit" step="0.0001">
-            </div>
-            <button id="buy-btn">▲ BUY</button>
-            <button id="sell-btn">▼ SELL</button>
-
-            <div class="portfolio-row">
-                <div class="pf-item">
-                    <div class="pf-item-label">Balance</div>
-                    <div class="pf-item-value" id="portfolio-value">$10,000.00</div>
-                </div>
-                <div class="pf-item">
-                    <div class="pf-item-label">Open Positions</div>
-                    <div class="pf-item-value" id="positions-count" style="color:var(--text-primary)">0</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- RIGHT SIDEBAR -->
-    <aside id="right-sidebar">
-        <div class="right-header">
-            <span class="right-header-title">Agent Intelligence Feed</span>
-            <div style="display:flex;align-items:center;gap:6px">
-                <div class="thinking-dots">
-                    <div class="thinking-dot"></div>
-                    <div class="thinking-dot"></div>
-                    <div class="thinking-dot"></div>
-                </div>
-                <button id="refresh-agents-btn" onclick="refreshAgents()" class="refresh-agents-btn">Refresh Now</button>
-            </div>
-        </div>
-
-        <div id="discussion-feed">
-            <div class="agent-card orchestrator">
-                <div class="agent-header">
-                    <div class="agent-name-row">
-                        <div class="agent-icon" style="background:rgba(56,139,253,0.15)">
-                            <i data-lucide="shield" style="color:var(--accent-blue)"></i>
-                        </div>
-                        <span class="agent-name" style="color:var(--accent-blue)">Strategic War Room</span>
-                    </div>
-                </div>
-                <div class="agent-thought" style="color:var(--text-secondary)">
-                    System initializing... Connecting to Finnhub data feeds and loading agent memory. First analysis cycle will begin in ~60 seconds.
-                </div>
-            </div>
-        </div>
-
-        <div id="user-input-area">
-            <textarea id="user-input" placeholder="Share your market insight or prediction... (e.g. 'I think EUR/USD will drop due to ECB rate decision')"></textarea>
-            <button id="send-btn">
-                <i data-lucide="send" style="width:13px;height:13px"></i>
-                Submit Insight to Agents
-            </button>
-        </div>
-
-        <div id="positions-panel">
-            <div class="sidebar-label" style="margin-bottom:4px;">Open Positions</div>
-            <div id="positions-list" style="color:var(--text-muted); font-size:11px;">No open positions.</div>
-        </div>
-    </aside>
-</div>
-
-<!-- ══════════════ BACKTEST OVERLAY PANEL ══════════════ -->
-<div id="backtest-overlay">
-    <div id="backtest-panel">
-
-        <!-- Panel header -->
-        <div id="bt-panel-header">
-            <div id="bt-panel-header-left">
-                <span id="bt-title">Backtest Results</span>
-                <select id="bt-pair-select" onchange="loadBacktest(this.value)">
-                    <option value="NIFTY" selected>NIFTY</option>
-                    <option value="SENSEX">SENSEX</option>
-                    <option value="BTC/USD">BTC/USD</option>
-                    <option value="EUR/USD">EUR/USD</option>
-                    <option value="USD/JPY">USD/JPY</option>
-                </select>
-                <span id="bt-status">—</span>
-            </div>
-            <button id="bt-close-btn" onclick="closeBacktest()" title="Close">&#10005;</button>
-        </div>
-
-        <!-- Scrollable body -->
-        <div id="bt-body">
-
-            <!-- Summary cards -->
-            <div id="bt-cards">
-                <div class="bt-card">
-                    <div class="bt-card-label">Win Rate</div>
-                    <div class="bt-card-value" id="bt-win-rate">—</div>
-                </div>
-                <div class="bt-card">
-                    <div class="bt-card-label">Total Signals</div>
-                    <div class="bt-card-value" id="bt-total-signals">—</div>
-                </div>
-                <div class="bt-card">
-                    <div class="bt-card-label">Correct Calls</div>
-                    <div class="bt-card-value" id="bt-correct-calls">—</div>
-                </div>
-            </div>
-
-            <!-- Signal distribution bar -->
-            <div class="bt-section">
-                <div class="bt-section-label">Signal Distribution (59-day 15M)</div>
-                <div id="bt-signal-bar">
-                    <div class="bt-bar-seg" id="bt-bar-buy"  style="width:33%">BUY</div>
-                    <div class="bt-bar-seg" id="bt-bar-sell" style="width:33%">SELL</div>
-                    <div class="bt-bar-seg" id="bt-bar-hold" style="width:34%">HOLD</div>
-                </div>
-            </div>
-
-            <!-- Results table (last 20) -->
-            <div id="bt-table-section">
-                <div class="bt-section-label" style="padding:12px 16px 0; margin-bottom:0;">Last 20 Signals</div>
-                <table id="bt-table">
-                    <thead>
-                        <tr>
-                            <th>DateTime</th>
-                            <th>Signal</th>
-                            <th>RSI</th>
-                            <th>Confidence</th>
-                            <th>Result</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bt-tbody">
-                        <tr>
-                            <td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">
-                                Loading...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-        </div><!-- /bt-body -->
-    </div><!-- /backtest-panel -->
-</div><!-- /backtest-overlay -->
-
-<script src="app.js"></script>
-<script>
-    // Initialize Lucide icons after page loads
-    document.addEventListener('DOMContentLoaded', () => {
-        lucide.createIcons();
-    });
-</script>
-
-<script>
-// ── BACKTEST PANEL ────────────────────────────────────────────────────────────
-(function () {
-    const API_BASE = 'http://localhost:8000';
-
-    function openBacktest() {
-        document.getElementById('backtest-overlay').classList.add('open');
-        document.getElementById('bt-open-btn').classList.add('active');
-    }
-
-    function closeBacktest() {
-        document.getElementById('backtest-overlay').classList.remove('open');
-        document.getElementById('bt-open-btn').classList.remove('active');
-    }
-
-    // Close on backdrop click
-    document.getElementById('backtest-overlay').addEventListener('click', function (e) {
-        if (e.target === this) closeBacktest();
-    });
-
-    async function loadBacktest(pair) {
-        const status = document.getElementById('bt-status');
-        const tbody  = document.getElementById('bt-tbody');
-
-        status.textContent = 'Loading…';
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">Fetching backtest data…</td></tr>';
-
-        document.getElementById('bt-win-rate').textContent       = '—';
-        document.getElementById('bt-win-rate').className         = 'bt-card-value';
-        document.getElementById('bt-total-signals').textContent  = '—';
-        document.getElementById('bt-correct-calls').textContent  = '—';
-        resetBar();
-
-        try {
-            const resp = await fetch(API_BASE + '/api/backtest?pair=' + encodeURIComponent(pair));
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.detail || 'HTTP ' + resp.status);
-            }
-            const data = await resp.json();
-            renderBacktest(data);
-            const analyzed = (data.results_by_day || []).length;
-            status.textContent = '59-day 15M backtest · ' + analyzed + ' candles analyzed';
-        } catch (err) {
-            status.textContent = 'Error loading data';
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:24px">'
-                + 'Failed to load: ' + err.message + '</td></tr>';
-        }
-    }
-
-    function resetBar() {
-        ['bt-bar-buy', 'bt-bar-sell', 'bt-bar-hold'].forEach(function (id) {
-            const el = document.getElementById(id);
-            el.style.width  = '33.33%';
-            el.textContent  = '';
-        });
-    }
-
-    function renderBacktest(data) {
-        const buySig   = data.buy_signals   || 0;
-        const sellSig  = data.sell_signals  || 0;
-        const holdSig  = data.hold_signals  || 0;
-        const total    = buySig + sellSig + holdSig;
-        const correct  = data.correct_signals || 0;
-        const winRate  = Math.round((data.win_rate || 0) * 100);
-
-        // Cards
-        const wrEl = document.getElementById('bt-win-rate');
-        wrEl.textContent = winRate + '%';
-        wrEl.className   = 'bt-card-value ' + (winRate >= 50 ? 'good' : 'bad');
-
-        document.getElementById('bt-total-signals').textContent = buySig + sellSig;
-        document.getElementById('bt-correct-calls').textContent = correct;
-
-        // Signal bar
-        if (total > 0) {
-            var buyPct  = Math.round(buySig  / total * 100);
-            var sellPct = Math.round(sellSig / total * 100);
-            var holdPct = 100 - buyPct - sellPct;
-
-            var buyEl  = document.getElementById('bt-bar-buy');
-            var sellEl = document.getElementById('bt-bar-sell');
-            var holdEl = document.getElementById('bt-bar-hold');
-
-            buyEl.style.width  = buyPct  + '%';
-            sellEl.style.width = sellPct + '%';
-            holdEl.style.width = holdPct + '%';
-
-            buyEl.textContent  = buyPct  > 7 ? 'BUY '  + buyPct  + '%' : '';
-            sellEl.textContent = sellPct > 7 ? 'SELL ' + sellPct + '%' : '';
-            holdEl.textContent = holdPct > 7 ? 'HOLD ' + holdPct + '%' : '';
-        }
-
-        // Table — last 20 rows, most recent first
-        var rows  = (data.results_by_day || []).slice(-20).reverse();
-        var tbody = document.getElementById('bt-tbody');
-        tbody.innerHTML = '';
-
-        if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">No signals generated for this pair.</td></tr>';
-            return;
-        }
-
-        rows.forEach(function (row) {
-            var tr = document.createElement('tr');
-            if (row.correct === true)       tr.classList.add('bt-row-correct');
-            else if (row.correct === false) tr.classList.add('bt-row-wrong');
-
-            var sigClass = row.signal === 'BUY'  ? 'bt-sig-buy'
-                         : row.signal === 'SELL' ? 'bt-sig-sell'
-                         : 'bt-sig-hold';
-
-            var resultHtml = row.correct === true
-                ? '<span class="bt-result-win">WIN</span>'
-                : row.correct === false
-                ? '<span class="bt-result-loss">LOSS</span>'
-                : '<span class="bt-result-na">—</span>';
-
-            var rsiStr  = row.rsi  != null ? Number(row.rsi).toFixed(1)  : '—';
-            var confStr = row.confidence > 0 ? row.confidence + '%' : '—';
-
-            tr.innerHTML =
-                '<td>' + (row.datetime || '—') + '</td>' +
-                '<td><span class="' + sigClass + '">' + row.signal + '</span></td>' +
-                '<td>' + rsiStr + '</td>' +
-                '<td>' + confStr + '</td>' +
-                '<td>' + resultHtml + '</td>';
-            tbody.appendChild(tr);
-        });
-    }
-
-    // Expose globals so onclick attributes work
-    window.openBacktest  = openBacktest;
-    window.closeBacktest = closeBacktest;
-    window.loadBacktest  = loadBacktest;
-
-    // Auto-load NIFTY on page ready
-    document.addEventListener('DOMContentLoaded', function () {
-        openBacktest();
-        loadBacktest('NIFTY');
-    });
-}());
-</script>
-
-</div><!-- /page-dashboard -->
-
-<div class="page" id="page-backtest"></div>
-
-<div class="page" id="page-paper">
-  <div style="padding:20px;overflow-y:auto;flex:1;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">Paper Trades</div>
-      <button onclick="loadPaperTrades()" style="padding:6px 14px;background:var(--accent-blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Refresh</button>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
-      <div class="pt-stat-card"><div class="pt-stat-label">Total Signals</div><div class="pt-stat-value" id="pt-total">—</div></div>
-      <div class="pt-stat-card"><div class="pt-stat-label">Wins</div><div class="pt-stat-value green" id="pt-wins">—</div></div>
-      <div class="pt-stat-card"><div class="pt-stat-label">Losses</div><div class="pt-stat-value red" id="pt-losses">—</div></div>
-      <div class="pt-stat-card"><div class="pt-stat-label">Win Rate</div><div class="pt-stat-value" id="pt-winrate">—</div></div>
+
+    <!-- Live Prices -->
+    <div class="section-title">Live Prices</div>
+    <div class="grid-3" id="price-grid">
+      <div class="card"><div class="card-label">NIFTY</div><div class="card-value" id="p-NIFTY">—</div><div style="font-size:12px;margin-top:4px;" id="c-NIFTY">—</div></div>
+      <div class="card"><div class="card-label">SENSEX</div><div class="card-value" id="p-SENSEX">—</div><div style="font-size:12px;margin-top:4px;" id="c-SENSEX">—</div></div>
+      <div class="card"><div class="card-label">BTC/USD</div><div class="card-value" id="p-BTC">—</div><div style="font-size:12px;margin-top:4px;" id="c-BTC">—</div></div>
     </div>
-    <div class="pt-table-wrap">
-      <table class="pt-table">
-        <thead><tr><th>Time</th><th>Pair</th><th>Signal</th><th>Entry</th><th>SL</th><th>Target</th><th>Confidence</th><th>Outcome</th></tr></thead>
-        <tbody id="pt-tbody"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Loading...</td></tr></tbody>
+
+    <!-- Latest Signals -->
+    <div class="section-title">Latest Agent Signals</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Time (IST)</th><th>Pair</th><th>Signal</th>
+          <th>Entry</th><th>Stop Loss</th><th>Target</th>
+          <th>Confidence</th><th>Outcome</th>
+        </tr></thead>
+        <tbody id="dash-signals">
+          <tr><td colspan="8" class="empty">Loading...</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
-</div>
 
-<div class="page" id="page-agents">
-  <div style="padding:20px;overflow-y:auto;flex:1;">
-    <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">Agent Performance</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
-      <div class="agent-card"><div class="agent-name">Quantitative</div><div class="agent-role">Technical Analysis</div><div class="agent-stat-row"><span>Total Signals</span><span id="ap-total">—</span></div><div class="agent-stat-row"><span>Win Rate</span><span id="ap-wr">—</span></div></div>
-      <div class="agent-card"><div class="agent-name">Academic</div><div class="agent-role">Pattern + HTF</div><div class="agent-stat-row"><span>Best Pair</span><span id="ap-best">—</span></div><div class="agent-stat-row"><span>Signals</span><span id="ap-sig">—</span></div></div>
-      <div class="agent-card"><div class="agent-name">System</div><div class="agent-role">Overall Health</div><div class="agent-stat-row"><span>DB Records</span><span id="ap-db">—</span></div><div class="agent-stat-row"><span>Pending</span><span id="ap-pend">—</span></div></div>
+  <!-- ═══ PAGE: PAPER TRADES ═══ -->
+  <div class="page" id="page-paper">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div class="page-title" style="margin-bottom:0">Paper Trades</div>
+      <button class="btn" onclick="loadPaper()">Refresh</button>
     </div>
-    <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Performance by Pair</div>
-    <div class="pt-table-wrap">
-      <table class="pt-table">
+    <div class="grid-4">
+      <div class="card"><div class="card-label">Total Signals</div><div class="card-value" id="pt-total">—</div></div>
+      <div class="card"><div class="card-label">Wins</div><div class="card-value green" id="pt-wins">—</div></div>
+      <div class="card"><div class="card-label">Losses</div><div class="card-value red" id="pt-losses">—</div></div>
+      <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="pt-wr">—</div></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Time (IST)</th><th>Pair</th><th>Signal</th>
+          <th>Entry</th><th>Stop Loss</th><th>Target</th>
+          <th>Confidence</th><th>Outcome</th>
+        </tr></thead>
+        <tbody id="pt-tbody">
+          <tr><td colspan="8" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE: BACKTEST ═══ -->
+  <div class="page" id="page-backtest">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div class="page-title" style="margin-bottom:0">Backtest Results</div>
+      <select id="bt-pair" onchange="loadBacktest()" style="padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        <option value="NIFTY">NIFTY</option>
+        <option value="SENSEX">SENSEX</option>
+        <option value="BTC/USD">BTC/USD</option>
+        <option value="EUR/USD">EUR/USD</option>
+        <option value="USD/JPY">USD/JPY</option>
+      </select>
+      <span id="bt-status" style="font-size:12px;color:var(--muted)">Loading...</span>
+    </div>
+    <div class="grid-3" style="margin-bottom:20px;">
+      <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="bt-wr">—</div></div>
+      <div class="card"><div class="card-label">Tradeable Signals</div><div class="card-value" id="bt-signals">—</div></div>
+      <div class="card"><div class="card-label">Correct Calls</div><div class="card-value green" id="bt-correct">—</div></div>
+    </div>
+    <div class="section-title">Signal Distribution (60-day 15M)</div>
+    <div class="signal-bar" id="bt-bar">
+      <div class="bar-buy" id="bt-bar-buy" style="width:33%">BUY</div>
+      <div class="bar-sell" id="bt-bar-sell" style="width:33%">SELL</div>
+      <div class="bar-hold" id="bt-bar-hold" style="width:34%">HOLD</div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:16px;">
+      <table>
+        <thead><tr>
+          <th>DateTime</th><th>Signal</th><th>RSI</th>
+          <th>Confidence</th><th>Result</th>
+        </tr></thead>
+        <tbody id="bt-tbody">
+          <tr><td colspan="5" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE: AGENTS ═══ -->
+  <div class="page" id="page-agents">
+    <div class="page-title">Agent Performance</div>
+    <div class="grid-3" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="card-label">Quantitative Agent</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Technical Analysis</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>Total Signals</span><span id="a-total">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span>Win Rate</span><span id="a-wr">—</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Academic Agent</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Pattern + HTF Analysis</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>Best Pair</span><span id="a-best">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span>Signals</span><span id="a-sig">—</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">System Health</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Overall Stats</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>DB Records</span><span id="a-db">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span>Pending</span><span id="a-pend">—</span></div>
+      </div>
+    </div>
+    <div class="section-title">Performance by Pair</div>
+    <div class="tbl-wrap">
+      <table>
         <thead><tr><th>Pair</th><th>Total</th><th>Wins</th><th>Losses</th><th>Win Rate</th></tr></thead>
-        <tbody id="perf-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Loading...</td></tr></tbody>
+        <tbody id="perf-tbody">
+          <tr><td colspan="5" class="empty">No resolved signals yet</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
-</div>
 
-</div><!-- /main-content -->
-</div><!-- /app-layout -->
+</div><!-- end #main -->
 
 <script>
-function showPage(name) {
+// ── NAVIGATION ──────────────────────────────────────────────────────
+function show(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const page = document.getElementById('page-' + name);
-  const nav  = document.getElementById('nav-' + name);
-  if (page) page.classList.add('active');
-  if (nav)  nav.classList.add('active');
-  if (name === 'paper')   loadPaperTrades();
-  if (name === 'agents')  loadAgentPerformance();
-  if (name === 'backtest') {
-    // Backtest uses the overlay — show it directly
-    const overlay = document.getElementById('backtest-overlay');
-    if (overlay) {
-      overlay.classList.add('open');
-      if (typeof loadBacktest === 'function') loadBacktest('NIFTY');
-    }
-  }
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'paper')     loadPaper();
+  if (name === 'backtest')  loadBacktest();
+  if (name === 'agents')    loadAgents();
 }
 
-async function loadPaperTrades() {
+// ── HELPERS ─────────────────────────────────────────────────────────
+function badge(type) {
+  const map = {
+    BUY:  '<span class="badge b-buy">BUY</span>',
+    SELL: '<span class="badge b-sell">SELL</span>',
+    WIN:  '<span class="badge b-win">WIN ✅</span>',
+    LOSS: '<span class="badge b-loss">LOSS ❌</span>',
+    PENDING: '<span class="badge b-open">OPEN</span>',
+    EXPIRED: '<span class="badge b-exp">EXPIRED</span>',
+  };
+  return map[type] || '<span class="badge b-exp">'+type+'</span>';
+}
+
+function fmt(n, dec=2) {
+  if (n == null) return 'N/A';
+  return Number(n).toLocaleString('en-IN', {maximumFractionDigits: dec});
+}
+
+function istTime(dt) {
+  if (!dt) return '—';
+  return dt.slice(5,16);
+}
+
+// ── DASHBOARD ───────────────────────────────────────────────────────
+async function loadDashboard() {
+  const now = new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'});
+  document.getElementById('last-updated').textContent = 'Updated: ' + now + ' IST';
+
+  // Tokens
   try {
-    const r = await fetch('/api/signals/history?limit=100');
-    const data = await r.json();
-    const signals = Array.isArray(data) ? data : (data.value || []);
-    let wins=0, losses=0, total=0;
-    const rows = signals.filter(s => s.decision !== 'HOLD').map(s => {
-      total++;
-      if (s.outcome === 'WIN')  wins++;
-      if (s.outcome === 'LOSS') losses++;
-      const rc = s.outcome==='WIN'?'pt-win':s.outcome==='LOSS'?'pt-loss':'';
-      const ob = s.outcome==='WIN'?'<span class="badge badge-win">WIN ✅</span>'
-               : s.outcome==='LOSS'?'<span class="badge badge-loss">LOSS ❌</span>'
-               : s.outcome==='PENDING'?'<span class="badge badge-open">OPEN</span>'
-               : '<span class="badge badge-expired">EXPIRED</span>';
-      const sb = s.decision==='BUY'?'badge-buy':'badge-sell';
-      return `<tr class="${rc}">
-        <td style="font-family:monospace">${(s.datetime||'').slice(5,16)}</td>
+    const t = await fetch('/api/token-usage').then(r=>r.json());
+    const gp = Math.min(Math.round((t.groq/500000)*100), 100);
+    document.getElementById('groq-fill').style.width = gp + '%';
+    document.getElementById('groq-fill').style.background = gp > 80 ? 'var(--red)' : 'var(--blue)';
+    document.getElementById('groq-info').textContent =
+      (t.groq/1000).toFixed(1)+'K / 500K (' + gp + '%) — ' + (t.groq_remaining/1000).toFixed(0) + 'K remaining';
+    const op = Math.min(2 + Math.round((t.openrouter/200000)*10), 100);
+    document.getElementById('or-fill').style.width = op + '%';
+    document.getElementById('or-info').textContent = (t.openrouter/1000).toFixed(1) + 'K used (unlimited)';
+    const gep = Math.min(Math.round((t.gemini/1000000)*100), 100);
+    document.getElementById('gem-fill').style.width = Math.max(gep,1) + '%';
+    document.getElementById('gem-info').textContent =
+      (t.gemini/1000).toFixed(1)+'K / 1M (' + gep + '%)';
+  } catch(e) {}
+
+  // Prices
+  try {
+    const p = await fetch('/api/prices').then(r=>r.json());
+    const d = p.data || p;
+    [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC']].forEach(([key,id]) => {
+      const pair = d[key];
+      if (!pair) return;
+      document.getElementById('p-'+id).textContent = fmt(pair.price, key==='BTC/USD'?0:2);
+      const chg = pair.change_pct || 0;
+      const cel = document.getElementById('c-'+id);
+      cel.textContent = (chg>=0?'▲ +':'▼ ') + chg.toFixed(2) + '%';
+      cel.style.color = chg>=0 ? 'var(--green)' : 'var(--red)';
+    });
+  } catch(e) {}
+
+  // Latest signals
+  try {
+    const s = await fetch('/api/signals/history?limit=10').then(r=>r.json());
+    const arr = Array.isArray(s) ? s : (s.value || []);
+    const rows = arr.filter(x=>x.decision!=='HOLD').slice(0,8).map(s =>
+      `<tr class="${s.outcome==='WIN'?'row-win':s.outcome==='LOSS'?'row-loss':''}">
+        <td style="font-family:monospace">${istTime(s.datetime)}</td>
         <td><b>${s.pair}</b></td>
-        <td><span class="badge ${sb}">${s.decision}</span></td>
-        <td>${s.price_at_signal?s.price_at_signal.toFixed(2):'—'}</td>
-        <td style="color:var(--red)">${s.stop_loss?s.stop_loss.toFixed(2):'N/A'}</td>
-        <td style="color:var(--green)">${s.target?s.target.toFixed(2):'N/A'}</td>
+        <td>${badge(s.decision)}</td>
+        <td>${fmt(s.price_at_signal)}</td>
+        <td style="color:var(--red)">${s.stop_loss?fmt(s.stop_loss):'N/A'}</td>
+        <td style="color:var(--green)">${s.target?fmt(s.target):'N/A'}</td>
         <td>${s.confidence}%</td>
-        <td>${ob}</td>
+        <td>${badge(s.outcome||'PENDING')}</td>
+      </tr>`
+    ).join('');
+    document.getElementById('dash-signals').innerHTML = rows ||
+      '<tr><td colspan="8" class="empty">No signals yet — agents will fire during market sessions</td></tr>';
+  } catch(e) {}
+}
+
+// ── PAPER TRADES ────────────────────────────────────────────────────
+async function loadPaper() {
+  try {
+    const s = await fetch('/api/signals/history?limit=100').then(r=>r.json());
+    const arr = (Array.isArray(s) ? s : (s.value || [])).filter(x=>x.decision!=='HOLD');
+    let wins=0, losses=0;
+    const rows = arr.map(s => {
+      if (s.outcome==='WIN')  wins++;
+      if (s.outcome==='LOSS') losses++;
+      return `<tr class="${s.outcome==='WIN'?'row-win':s.outcome==='LOSS'?'row-loss':''}">
+        <td style="font-family:monospace">${istTime(s.datetime)}</td>
+        <td><b>${s.pair}</b></td>
+        <td>${badge(s.decision)}</td>
+        <td>${fmt(s.price_at_signal)}</td>
+        <td style="color:var(--red)">${s.stop_loss?fmt(s.stop_loss):'N/A'}</td>
+        <td style="color:var(--green)">${s.target?fmt(s.target):'N/A'}</td>
+        <td>${s.confidence}%</td>
+        <td>${badge(s.outcome||'PENDING')}</td>
       </tr>`;
     }).join('');
-    document.getElementById('pt-tbody').innerHTML = rows||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">No signals yet — system will populate as agents run</td></tr>';
-    document.getElementById('pt-total').textContent = total;
-    document.getElementById('pt-wins').textContent  = wins;
-    document.getElementById('pt-losses').textContent= losses;
-    const wr = total>0?Math.round((wins/total)*100)+'%':'—';
-    const el = document.getElementById('pt-winrate');
-    el.textContent = wr;
-    el.className = 'pt-stat-value '+(total>0&&wins/total>0.5?'green':'red');
-    document.getElementById('ap-total').textContent = total;
-    document.getElementById('ap-sig').textContent   = total;
-    document.getElementById('ap-db').textContent    = total;
-    const pend = signals.filter(s=>s.outcome==='PENDING').length;
-    document.getElementById('ap-pend').textContent  = pend;
-    if(total>0){ document.getElementById('ap-wr').textContent = Math.round((wins/total)*100)+'%'; }
+    document.getElementById('pt-total').textContent   = arr.length;
+    document.getElementById('pt-wins').textContent    = wins;
+    document.getElementById('pt-losses').textContent  = losses;
+    const wr = arr.length > 0 ? Math.round((wins/arr.length)*100)+'%' : '—';
+    const el = document.getElementById('pt-wr');
+    el.textContent  = wr;
+    el.className    = 'card-value ' + (arr.length>0 && wins/arr.length>0.5 ? 'green':'red');
+    document.getElementById('pt-tbody').innerHTML = rows ||
+      '<tr><td colspan="8" class="empty">No signals yet</td></tr>';
   } catch(e) {
-    document.getElementById('pt-tbody').innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--red)">Error: '+e.message+'</td></tr>';
+    document.getElementById('pt-tbody').innerHTML =
+      '<tr><td colspan="8" class="empty" style="color:var(--red)">Error loading: '+e.message+'</td></tr>';
   }
 }
 
-async function loadAgentPerformance() {
-  await loadPaperTrades();
+// ── BACKTEST ─────────────────────────────────────────────────────────
+async function loadBacktest() {
+  const pair = document.getElementById('bt-pair').value;
+  const enc  = encodeURIComponent(pair);
+  document.getElementById('bt-status').textContent = 'Loading... (may take 30s)';
+  document.getElementById('bt-tbody').innerHTML = '<tr><td colspan="5" class="empty">Calculating...</td></tr>';
   try {
-    const r = await fetch('/api/signals/performance');
-    const data = await r.json();
-    const rows = Object.entries(data).map(([pair,s])=>`<tr>
-      <td><b>${pair}</b></td>
-      <td>${s.total}</td>
-      <td style="color:var(--green)">${s.wins}</td>
-      <td style="color:var(--red)">${s.losses}</td>
-      <td style="color:${s.win_rate>0.5?'var(--green)':'var(--red)'}"><b>${Math.round(s.win_rate*100)}%</b></td>
-    </tr>`).join('');
-    document.getElementById('perf-tbody').innerHTML = rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">No resolved signals yet</td></tr>';
-    if(Object.keys(data).length>0){
-      const best = Object.entries(data).sort((a,b)=>b[1].win_rate-a[1].win_rate)[0];
-      document.getElementById('ap-best').textContent = best[0]+' '+Math.round(best[1].win_rate*100)+'%';
+    const r = await fetch('/api/backtest?pair='+enc, {signal: AbortSignal.timeout(90000)}).then(r=>r.json());
+    const wr = Math.round((r.win_rate||0)*100);
+    document.getElementById('bt-wr').textContent = wr + '%';
+    document.getElementById('bt-wr').className = 'card-value ' + (wr>=50?'green':'red');
+    document.getElementById('bt-signals').textContent = (r.buy_signals||0) + (r.sell_signals||0);
+    document.getElementById('bt-correct').textContent = r.correct_signals||0;
+    document.getElementById('bt-status').textContent = '60-day 15M backtest';
+    const total = (r.total_signals||1);
+    const bp = Math.round(((r.buy_signals||0)/total)*100);
+    const sp = Math.round(((r.sell_signals||0)/total)*100);
+    const hp = 100-bp-sp;
+    document.getElementById('bt-bar-buy').style.width  = bp+'%';
+    document.getElementById('bt-bar-sell').style.width = sp+'%';
+    document.getElementById('bt-bar-hold').style.width = hp+'%';
+    document.getElementById('bt-bar-buy').textContent  = bp>5?'BUY '+bp+'%':'';
+    document.getElementById('bt-bar-sell').textContent = sp>5?'SELL '+sp+'%':'';
+    document.getElementById('bt-bar-hold').textContent = hp>5?'HOLD '+hp+'%':'';
+    const rows = (r.results_by_day||[]).slice(-20).reverse().map(s =>
+      `<tr class="${s.correct===true?'row-win':s.correct===false?'row-loss':''}">
+        <td style="font-family:monospace">${istTime(s.datetime)}</td>
+        <td>${badge(s.signal)}</td>
+        <td>${s.rsi?s.rsi.toFixed(1):'—'}</td>
+        <td>${s.confidence||0}%</td>
+        <td>${s.correct===true?'<span style="color:var(--green)">✅ Correct</span>':
+             s.correct===false?'<span style="color:var(--red)">❌ Wrong</span>':
+             '<span style="color:var(--muted)">— HOLD</span>'}</td>
+      </tr>`
+    ).join('');
+    document.getElementById('bt-tbody').innerHTML = rows||'<tr><td colspan="5" class="empty">No data</td></tr>';
+  } catch(e) {
+    document.getElementById('bt-status').textContent = 'Error: '+e.message;
+    document.getElementById('bt-tbody').innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--red)">'+e.message+'</td></tr>';
+  }
+}
+
+// ── AGENTS ──────────────────────────────────────────────────────────
+async function loadAgents() {
+  try {
+    const s = await fetch('/api/signals/history?limit=200').then(r=>r.json());
+    const arr = (Array.isArray(s)?s:(s.value||[])).filter(x=>x.decision!=='HOLD');
+    let wins=0;
+    arr.forEach(x=>{ if(x.outcome==='WIN') wins++; });
+    const pend = arr.filter(x=>x.outcome==='PENDING').length;
+    document.getElementById('a-total').textContent = arr.length;
+    document.getElementById('a-wr').textContent    = arr.length>0?Math.round((wins/arr.length)*100)+'%':'—';
+    document.getElementById('a-sig').textContent   = arr.length;
+    document.getElementById('a-db').textContent    = arr.length;
+    document.getElementById('a-pend').textContent  = pend;
+    const perf = await fetch('/api/signals/performance').then(r=>r.json());
+    const rows = Object.entries(perf).map(([pair,s])=>
+      `<tr>
+        <td><b>${pair}</b></td>
+        <td>${s.total}</td>
+        <td style="color:var(--green)">${s.wins}</td>
+        <td style="color:var(--red)">${s.losses}</td>
+        <td style="color:${s.win_rate>0.5?'var(--green)':'var(--red)'}"><b>${Math.round(s.win_rate*100)}%</b></td>
+      </tr>`
+    ).join('');
+    document.getElementById('perf-tbody').innerHTML = rows ||
+      '<tr><td colspan="5" class="empty">No resolved signals yet — check back after market hours</td></tr>';
+    if (Object.keys(perf).length > 0) {
+      const best = Object.entries(perf).sort((a,b)=>b[1].win_rate-a[1].win_rate)[0];
+      document.getElementById('a-best').textContent = best[0]+' '+Math.round(best[1].win_rate*100)+'%';
     }
   } catch(e) {}
 }
+
+// ── AUTO REFRESH ─────────────────────────────────────────────────────
+loadDashboard();
+setInterval(loadDashboard, 30000);
 </script>
+
 </body>
 </html>
