@@ -737,8 +737,8 @@ async def agent_loop():
             pairs_to_run = []
 
             # ── NIFTY / SENSEX: only during NSE hours Mon-Fri ──
-            NSE_OPEN  = 9 * 60 + 15   # 9:15 AM IST
-            NSE_CLOSE = 15 * 60 + 30  # 3:30 PM IST
+            NSE_OPEN  = 9 * 60 + 20   # 9:20 AM IST (5 min after open - avoid open volatility)
+            NSE_CLOSE = 15 * 60 + 0   # 3:00 PM IST (30 min before close - avoid late signals)
             if weekday < 5 and NSE_OPEN <= ist_time <= NSE_CLOSE:
                 pairs_to_run += ["NIFTY", "SENSEX"]
 
