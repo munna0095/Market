@@ -409,6 +409,9 @@
         <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span>Pending</span><span id="a-pend">—</span></div>
       </div>
     </div>
+    <div id="agent-cards" style="margin-top:20px">
+      <div style="color:var(--muted);text-align:center;padding:40px">Loading agent data...</div>
+    </div>
     <div class="section-title">Performance by Pair</div>
     <div class="tbl-wrap">
       <table>
@@ -596,6 +599,7 @@ async function loadBacktest() {
 // ── AGENTS ──────────────────────────────────────────────────────────
 async function loadAgents() {
   try {
+    // Load performance stats
     const s = await fetch('/api/signals/history?limit=200').then(r=>r.json());
     const arr = (Array.isArray(s)?s:(s.value||[])).filter(x=>x.decision!=='HOLD');
     let wins=0;
@@ -606,6 +610,7 @@ async function loadAgents() {
     document.getElementById('a-sig').textContent   = arr.length;
     document.getElementById('a-db').textContent    = arr.length;
     document.getElementById('a-pend').textContent  = pend;
+
     const perf = await fetch('/api/signals/performance').then(r=>r.json());
     const rows = Object.entries(perf).map(([pair,s])=>
       `<tr>
@@ -617,12 +622,78 @@ async function loadAgents() {
       </tr>`
     ).join('');
     document.getElementById('perf-tbody').innerHTML = rows ||
-      '<tr><td colspan="5" class="empty">No resolved signals yet — check back after market hours</td></tr>';
+      '<tr><td colspan="5" class="empty">No resolved signals yet</td></tr>';
     if (Object.keys(perf).length > 0) {
       const best = Object.entries(perf).sort((a,b)=>b[1].win_rate-a[1].win_rate)[0];
       document.getElementById('a-best').textContent = best[0]+' '+Math.round(best[1].win_rate*100)+'%';
     }
-  } catch(e) {}
+
+    // Load agent summary cards
+    const summary = await fetch('/api/agent-summary').then(r=>r.json());
+    const pairs = Object.values(summary.data || {});
+    const container = document.getElementById('agent-cards');
+    if (!container) return;
+
+    if (pairs.length === 0) {
+      container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px">Agents will populate here after market hours 9:20 AM</div>';
+      return;
+    }
+
+    container.innerHTML = pairs.map(p => {
+      const ind = p.indicators || {};
+      const decColor = p.decision==='BUY'||p.decision==='STRONG BUY' ? 'var(--green)' :
+                       p.decision==='SELL'||p.decision==='STRONG SELL' ? 'var(--red)' : 'var(--muted)';
+      const htfColor = p.htf_1h==='UP' ? 'var(--green)' : p.htf_1h==='DOWN' ? 'var(--red)' : 'var(--muted)';
+      return `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0;font-size:18px">${p.pair}</h3>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="color:${htfColor};font-size:13px">1H: ${p.htf_1h||'—'}</span>
+            <span style="color:${decColor};font-weight:700;font-size:16px">${p.decision||'—'}</span>
+            <span style="color:var(--muted);font-size:13px">${p.confidence||0}%</span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;background:var(--bg3);padding:10px;border-radius:6px">
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">RSI</div><div style="font-weight:600">${ind.rsi?Number(ind.rsi).toFixed(1):'—'}</div></div>
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">ADX</div><div style="font-weight:600">${ind.adx?Number(ind.adx).toFixed(1):'—'}</div></div>
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">EMA20</div><div style="font-weight:600">${ind.ema20?Number(ind.ema20).toFixed(0):'—'}</div></div>
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">EMA50</div><div style="font-weight:600">${ind.ema50?Number(ind.ema50).toFixed(0):'—'}</div></div>
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">Price</div><div style="font-weight:600">${p.price?Number(p.price).toFixed(0):'—'}</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div style="background:var(--bg3);padding:10px;border-radius:6px;border-left:3px solid var(--blue)">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📊 QUANTITATIVE</div>
+            <div style="font-size:13px;line-height:1.5">${p.quant_summary||'Waiting for next run...'}</div>
+          </div>
+          <div style="background:var(--bg3);padding:10px;border-radius:6px;border-left:3px solid var(--purple)">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📚 ACADEMIC</div>
+            <div style="font-size:13px;line-height:1.5">${p.academic_summary||'Waiting for next run...'}</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:var(--bg3);padding:10px;border-radius:6px;border-left:3px solid var(--red)">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">🌍 GEOPOLITICAL</div>
+            <div style="font-size:13px;line-height:1.5">${p.geo_summary||'Waiting for next run...'}</div>
+          </div>
+          <div style="background:var(--bg3);padding:10px;border-radius:6px;border-left:3px solid var(--green)">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">🎯 BOSS REASONING</div>
+            <div style="font-size:13px;line-height:1.5">${p.boss_reasoning||'Waiting for next run...'}</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted)">
+          SL: ${p.stop_loss?'₹'+Number(p.stop_loss).toFixed(2):'N/A'} &nbsp;|&nbsp;
+          TP: ${p.target?'₹'+Number(p.target).toFixed(2):'N/A'} &nbsp;|&nbsp;
+          Last run: ${p.last_updated||'—'}
+        </div>
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    console.error('loadAgents error:', e);
+  }
 }
 
 // ── AUTO REFRESH ─────────────────────────────────────────────────────
