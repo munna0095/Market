@@ -216,15 +216,18 @@ async def signals_performance_endpoint():
 
 @app.get("/api/token-usage")
 async def get_token_usage():
+    groq_used    = _token_log.get("groq", 0)
+    openrouter   = _token_log.get("openrouter", 0)
+    gemini_used  = _token_log.get("gemini", 0)
     return {
-        "groq":              _token_log["groq"],
-        "openrouter":        _token_log["openrouter"],
-        "gemini":            _token_log["gemini"],
-        "total_today":       sum(_token_log.values()),
+        "groq":              groq_used,
+        "openrouter":        openrouter,
+        "gemini":            gemini_used,
+        "total_today":       groq_used + openrouter + gemini_used,
         "groq_limit":        500_000,
         "gemini_limit":      1_000_000,
-        "groq_remaining":    500_000  - _token_log["groq"],
-        "gemini_remaining":  1_000_000 - _token_log["gemini"],
+        "groq_remaining":    500_000   - groq_used,
+        "gemini_remaining":  1_000_000 - gemini_used,
     }
 
 @app.post("/api/refresh_agents")
