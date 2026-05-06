@@ -627,7 +627,9 @@ async function loadAgents() {
 
 // ── AUTO REFRESH ─────────────────────────────────────────────────────
 loadDashboard();
-setInterval(loadDashboard, 30000);
+setInterval(loadDashboard, 3000);   // prices refresh every 3 seconds
+setInterval(loadPaper, 15000);      // signals/paper trades refresh every 15 seconds
+setInterval(loadAgents, 60000);     // agents refresh every 60 seconds
 </script>
 
 </body>
