@@ -771,7 +771,7 @@ async def agent_loop():
             if unique_pairs:
                 print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
                       f"— Running {unique_pairs}")
-                market_summary = await market_data_agent.get_market_summary()
+                market_summary = await market_data_agent.get_market_summary(unique_pairs)
                 news_text = world_feed_service._last_feed if hasattr(world_feed_service, '_last_feed') else ""
 
                 for pair in unique_pairs:
