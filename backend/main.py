@@ -502,6 +502,53 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
     if not price_data:
         print(f"[Agent Loop] No price data for {target_pair}, skipping")
         return
+
+    # ── VIX FILTER: skip BUY signals on high fear days ──────────────────
+    if target_pair in ["NIFTY", "SENSEX"]:
+        try:
+            import yfinance as yf
+            vix_data = yf.download("^INDIAVIX", period="2d",
+                                   interval="1d", progress=False)
+            if isinstance(vix_data.columns, pd.MultiIndex):
+                vix_data.columns = [c[0] for c in vix_data.columns]
+            if not vix_data.empty:
+                vix_val = float(vix_data["Close"].iloc[-1])
+                print(f"[VIX] India VIX = {vix_val:.2f}")
+                if vix_val > 18:
+                    print(f"[VIX] HIGH FEAR ({vix_val:.2f} > 18) — skipping {target_pair}")
+                    _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
+                    _latest_signals[target_pair]["vix_blocked"] = True
+                    _latest_signals[target_pair]["vix_value"] = vix_val
+                    return
+                else:
+                    _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
+                    _latest_signals[target_pair]["vix_value"] = vix_val
+                    _latest_signals[target_pair]["vix_blocked"] = False
+        except Exception as vix_err:
+            print(f"[VIX] Error: {vix_err}")
+    # ── END VIX FILTER ──────────────────────────────────────────────────
+
+    # ── PREV DAY BIAS: only trade with yesterday's close direction ──────
+    if target_pair in ["NIFTY", "SENSEX"]:
+        try:
+            import yfinance as yf
+            _TICKERS = {"NIFTY": "^NSEI", "SENSEX": "^BSESN"}
+            sym_daily = _TICKERS.get(target_pair)
+            daily = yf.download(sym_daily, period="5d",
+                                interval="1d", progress=False)
+            if isinstance(daily.columns, pd.MultiIndex):
+                daily.columns = [c[0] for c in daily.columns]
+            if len(daily) >= 2:
+                prev_close = float(daily["Close"].iloc[-2])
+                prev_open  = float(daily["Open"].iloc[-2])
+                prev_day_bias = "BULLISH" if prev_close > prev_open else "BEARISH"
+                print(f"[PrevDay] {target_pair} yesterday = {prev_day_bias}")
+                _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
+                _latest_signals[target_pair]["prev_day_bias"] = prev_day_bias
+        except Exception as bias_err:
+            print(f"[PrevDay] Error: {bias_err}")
+    # ── END PREV DAY BIAS ────────────────────────────────────────────────
+
     try:
         final = await graph.run(
             pair       = target_pair,
@@ -584,10 +631,10 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                 atr   = float(tr.ewm(span=14, adjust=False).mean().iloc[-1])
                 entry = float(final.get("price", 0))
                 if decision == "BUY":
-                    stop_loss = round(entry - (atr * 1.5), 4)
+                    stop_loss = round(entry - (atr * 1.0), 4)
                     target    = round(entry + (atr * 2.0), 4)
                 elif decision == "SELL":
-                    stop_loss = round(entry + (atr * 1.5), 4)
+                    stop_loss = round(entry + (atr * 1.0), 4)
                     target    = round(entry - (atr * 2.0), 4)
         except Exception as e:
             print(f"[ATR] Calculation failed: {e}")
@@ -801,9 +848,21 @@ async def agent_loop():
             pairs_to_run = []
 
             # ── NIFTY / SENSEX: only during NSE hours Mon-Fri ──
-            NSE_OPEN  = 9 * 60 + 20   # 9:20 AM IST (5 min after open - avoid open volatility)
-            NSE_CLOSE = 15 * 60 + 0   # 3:00 PM IST (30 min before close - avoid late signals)
-            if weekday < 5 and NSE_OPEN <= ist_time <= NSE_CLOSE:
+            NSE_OPEN  = 9 * 60 + 20
+            NSE_CLOSE = 15 * 60 + 0
+
+            # Best signal windows only (avoid choppy 11AM-1PM)
+            MORNING_START = 9 * 60 + 20   # 9:20 AM
+            MORNING_END   = 10 * 60 + 30  # 10:30 AM
+            AFTERNOON_START = 13 * 60 + 30  # 1:30 PM
+            AFTERNOON_END   = 14 * 60 + 30  # 2:30 PM
+
+            in_best_window = (
+                (MORNING_START <= ist_time <= MORNING_END) or
+                (AFTERNOON_START <= ist_time <= AFTERNOON_END)
+            )
+
+            if weekday < 5 and NSE_OPEN <= ist_time <= NSE_CLOSE and in_best_window:
                 pairs_to_run += ["NIFTY", "SENSEX"]
 
             # ── BTC: Asian + London + NY session opens ──
