@@ -214,6 +214,28 @@ async def signals_performance_endpoint():
     """Return WIN/LOSS performance summary per pair."""
     return get_win_rate_by_pair()
 
+@app.get("/api/agent-summary")
+async def get_agent_summary():
+    """Returns what each agent last found — for readable UI display."""
+    result = {}
+    for pair, data in _latest_signals.items():
+        result[pair] = {
+            "pair":              pair,
+            "decision":          data.get("decision", "—"),
+            "confidence":        data.get("confidence", 0),
+            "htf_1h":            data.get("htf_1h", "UNKNOWN"),
+            "quant_summary":     data.get("quant_summary", "Not yet run"),
+            "academic_summary":  data.get("academic_summary", "Not yet run"),
+            "geo_summary":       data.get("geo_summary", "Not yet run"),
+            "boss_reasoning":    data.get("boss_reasoning", "Not yet run"),
+            "indicators":        data.get("indicators", {}),
+            "last_updated":      data.get("datetime", "—"),
+            "stop_loss":         data.get("stop_loss"),
+            "target":            data.get("target"),
+            "price":             data.get("price"),
+        }
+    return {"data": result, "count": len(result)}
+
 @app.get("/api/token-usage")
 async def get_token_usage():
     groq_used    = _token_log.get("groq", 0)
@@ -517,6 +539,21 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
             "skipped_agents":  skipped,
         }
 
+        quant_result = final.get("_quant_result") or {}
+        acad_result  = final.get("_academic_result") or {}
+        geo_result   = final.get("_geo_result") or {}
+        _latest_signals[target_pair]["quant_summary"]    = str(quant_result.get("analysis", ""))[:300]
+        _latest_signals[target_pair]["academic_summary"] = str(acad_result.get("analysis", ""))[:300]
+        _latest_signals[target_pair]["geo_summary"]      = str(geo_result.get("analysis", ""))[:300]
+        _latest_signals[target_pair]["boss_reasoning"]   = str(final.get("thought", ""))[:300]
+        _latest_signals[target_pair]["indicators"] = {
+            "rsi":  price_data.get("rsi"),
+            "macd": price_data.get("macd"),
+            "adx":  price_data.get("adx"),
+            "ema20": price_data.get("ema_20"),
+            "ema50": price_data.get("ema_50"),
+        }
+
         # Persist signal to database
         decision   = final.get("decision", "HOLD")
         confidence = int(final.get("confidence", 0))
@@ -628,7 +665,7 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
 # ── LOOP 3: Outcome Checker (every 1 hour) ────────────────────────────────────
 async def outcome_checker_loop():
     """Every hour: check price movement for PENDING signals → WIN/LOSS."""
-    await asyncio.sleep(3600)
+    await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
     while True:
         try:
             from services.database_service import get_pending_outcomes, update_outcome
@@ -705,13 +742,40 @@ async def outcome_checker_loop():
                     print(f"[Outcome] {sig['pair']} {sig['decision']} "
                           f"-> {outcome} (price={current})")
 
+                    # Send immediate Telegram alert
+                    entry   = float(sig.get("price_at_signal") or 0)
+                    sl      = float(sig.get("stop_loss") or 0)
+                    tp      = float(sig.get("target") or 0)
+                    pnl_pts = round(current - entry, 2) if sig["decision"] == "BUY" else round(entry - current, 2)
+                    pnl_pct = round((abs(pnl_pts) / entry) * 100, 2) if entry else 0
+
+                    if outcome == "WIN":
+                        msg = (
+                            f"🎯 TARGET HIT — {sig['pair']}\n"
+                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
+                            f"Exit:    ₹{current:,.2f}\n"
+                            f"P&L:     +{abs(pnl_pts):,.2f} pts (+{pnl_pct}%)\n"
+                            f"TP was:  ₹{tp:,.2f}\n"
+                            f"Result:  ✅ WIN"
+                        )
+                    else:
+                        msg = (
+                            f"🛑 STOP LOSS HIT — {sig['pair']}\n"
+                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
+                            f"Exit:    ₹{current:,.2f}\n"
+                            f"P&L:     -{abs(pnl_pts):,.2f} pts (-{pnl_pct}%)\n"
+                            f"SL was:  ₹{sl:,.2f}\n"
+                            f"Result:  ❌ LOSS"
+                        )
+                    await telegram_service.send_message(msg)
+
                 except Exception as e:
                     print(f"[Outcome] Error on signal {sig.get('id')}: {e}")
 
         except Exception as e:
             print(f"[Outcome] Loop error: {e}")
 
-        await asyncio.sleep(3600)
+        await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
 
 
 # ── LOOP 2: AI Agent Loop — SMART session-aware ────────────────────────────────
