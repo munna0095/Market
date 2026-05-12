@@ -8,7 +8,7 @@ This gives real-time price updates without AI blocking the feed.
 import asyncio
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 from pydantic import BaseModel
 from typing import Optional
@@ -76,6 +76,7 @@ graph = GraphOrchestrator(
 )
 
 _latest_signals: dict = {}
+_nse_cycle_data: dict = {}
 _loop_tasks: dict = {"price": None, "agent": None, "outcome": None}
 _world_news_cache: str = "Initializing global intelligence feed..."
 MONITORED_PAIRS = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
@@ -504,50 +505,30 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         print(f"[Agent Loop] No price data for {target_pair}, skipping")
         return
 
-    # ── VIX FILTER: skip BUY signals on high fear days ──────────────────
+    # ── VIX FILTER: skip signals on high fear days (uses pre-fetched cache) ──
     if target_pair in ["NIFTY", "SENSEX"]:
-        try:
-            import yfinance as yf
-            vix_data = yf.download("^INDIAVIX", period="2d",
-                                   interval="1d", progress=False)
-            if isinstance(vix_data.columns, pd.MultiIndex):
-                vix_data.columns = [c[0] for c in vix_data.columns]
-            if not vix_data.empty:
-                vix_val = float(vix_data["Close"].iloc[-1])
-                print(f"[VIX] India VIX = {vix_val:.2f}")
-                if vix_val > 18:
-                    print(f"[VIX] HIGH FEAR ({vix_val:.2f} > 18) — skipping {target_pair}")
-                    _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
-                    _latest_signals[target_pair]["vix_blocked"] = True
-                    _latest_signals[target_pair]["vix_value"] = vix_val
-                    return
-                else:
-                    _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
-                    _latest_signals[target_pair]["vix_value"] = vix_val
-                    _latest_signals[target_pair]["vix_blocked"] = False
-        except Exception as vix_err:
-            print(f"[VIX] Error: {vix_err}")
+        vix_val = _nse_cycle_data.get("vix")
+        if vix_val is not None:
+            print(f"[VIX] India VIX = {vix_val:.2f}")
+            sig_dict = _latest_signals.get(target_pair, {})
+            sig_dict["vix_value"] = vix_val
+            if vix_val > 18:
+                print(f"[VIX] HIGH FEAR ({vix_val:.2f} > 18) — skipping {target_pair}")
+                sig_dict["vix_blocked"] = True
+                _latest_signals[target_pair] = sig_dict
+                return
+            sig_dict["vix_blocked"] = False
+            _latest_signals[target_pair] = sig_dict
     # ── END VIX FILTER ──────────────────────────────────────────────────
 
-    # ── PREV DAY BIAS: only trade with yesterday's close direction ──────
+    # ── PREV DAY BIAS: store yesterday's direction (uses pre-fetched cache) ──
     if target_pair in ["NIFTY", "SENSEX"]:
-        try:
-            import yfinance as yf
-            _TICKERS = {"NIFTY": "^NSEI", "SENSEX": "^BSESN"}
-            sym_daily = _TICKERS.get(target_pair)
-            daily = yf.download(sym_daily, period="5d",
-                                interval="1d", progress=False)
-            if isinstance(daily.columns, pd.MultiIndex):
-                daily.columns = [c[0] for c in daily.columns]
-            if len(daily) >= 2:
-                prev_close = float(daily["Close"].iloc[-2])
-                prev_open  = float(daily["Open"].iloc[-2])
-                prev_day_bias = "BULLISH" if prev_close > prev_open else "BEARISH"
-                print(f"[PrevDay] {target_pair} yesterday = {prev_day_bias}")
-                _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
-                _latest_signals[target_pair]["prev_day_bias"] = prev_day_bias
-        except Exception as bias_err:
-            print(f"[PrevDay] Error: {bias_err}")
+        bias = _nse_cycle_data.get(f"{target_pair}_bias")
+        if bias:
+            print(f"[PrevDay] {target_pair} yesterday = {bias}")
+            sig_dict = _latest_signals.get(target_pair, {})
+            sig_dict["prev_day_bias"] = bias
+            _latest_signals[target_pair] = sig_dict
     # ── END PREV DAY BIAS ────────────────────────────────────────────────
 
     try:
@@ -587,12 +568,13 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
             "skipped_agents":  skipped,
         }
 
-        quant_result = final.get("_quant_result") or {}
-        acad_result  = final.get("_academic_result") or {}
-        geo_result   = final.get("_geo_result") or {}
-        _latest_signals[target_pair]["quant_summary"]    = str(quant_result.get("analysis", ""))[:300]
-        _latest_signals[target_pair]["academic_summary"] = str(acad_result.get("analysis", ""))[:300]
-        _latest_signals[target_pair]["geo_summary"]      = str(geo_result.get("analysis", ""))[:300]
+        def _extract(val):
+            if isinstance(val, dict):
+                return str(val.get("analysis", "") or val.get("thought", "") or "")[:300]
+            return str(val or "")[:300]
+        _latest_signals[target_pair]["quant_summary"]    = _extract(final.get("_quant_result"))
+        _latest_signals[target_pair]["academic_summary"] = _extract(final.get("_academic_result"))
+        _latest_signals[target_pair]["geo_summary"]      = _extract(final.get("_geo_result"))
         _latest_signals[target_pair]["boss_reasoning"]   = str(final.get("thought", ""))[:300]
         _latest_signals[target_pair]["indicators"] = {
             "rsi":  price_data.get("rsi"),
@@ -639,6 +621,10 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                     target    = round(entry - (atr * 2.0), 4)
         except Exception as e:
             print(f"[ATR] Calculation failed: {e}")
+
+        _latest_signals[target_pair]["stop_loss"] = stop_loss
+        _latest_signals[target_pair]["target"]    = target
+        _latest_signals[target_pair]["datetime"]  = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
 
         try:
             def _safe_float(val):
@@ -744,6 +730,11 @@ async def outcome_checker_loop():
                     if isinstance(close_col, pd.DataFrame):
                         close_col = close_col.iloc[:, 0]
                     current  = float(close_col.iloc[-1])
+                    # Use real-time AngelOne price for NSE pairs if available
+                    if sig["pair"] in ("NIFTY", "SENSEX"):
+                        _cached = angel_service.get_cached_price(sig["pair"])
+                        if _cached and _cached.get("price"):
+                            current = float(_cached["price"])
                     entry    = sig["price_at_signal"]
                     if not entry or entry == 0:
                         continue
@@ -791,30 +782,28 @@ async def outcome_checker_loop():
                           f"-> {outcome} (price={current})")
 
                     # Send immediate Telegram alert
-                    entry   = float(sig.get("price_at_signal") or 0)
-                    sl      = float(sig.get("stop_loss") or 0)
-                    tp      = float(sig.get("target") or 0)
-                    pnl_pts = round(current - entry, 2) if sig["decision"] == "BUY" else round(entry - current, 2)
-                    pnl_pct = round((abs(pnl_pts) / entry) * 100, 2) if entry else 0
+                    entry     = float(sig.get("price_at_signal") or 0)
+                    sl        = float(sig.get("stop_loss") or 0)
+                    tp        = float(sig.get("target") or 0)
+                    pair_name = sig["pair"]
+                    dp        = 2 if pair_name in ("NIFTY", "SENSEX", "BTC/USD") else 4
+                    sym       = "₹" if pair_name in ("NIFTY", "SENSEX") else ""
+                    fmt_v     = lambda v: f"{sym}{v:,.{dp}f}"
+                    pnl_pts   = round(current - entry, dp) if sig["decision"] == "BUY" else round(entry - current, dp)
+                    pnl_pct   = round((abs(pnl_pts) / entry) * 100, 2) if entry else 0
 
                     if outcome == "WIN":
-                        msg = (
-                            f"🎯 TARGET HIT — {sig['pair']}\n"
-                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
-                            f"Exit:    ₹{current:,.2f}\n"
-                            f"P&L:     +{abs(pnl_pts):,.2f} pts (+{pnl_pct}%)\n"
-                            f"TP was:  ₹{tp:,.2f}\n"
-                            f"Result:  ✅ WIN"
-                        )
+                        msg = (f"\U0001f3af TARGET HIT — {pair_name}\n"
+                               f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
+                               f"Exit:   {fmt_v(current)}\n"
+                               f"P&L:    +{abs(pnl_pts):,.{dp}f} pts (+{pnl_pct}%)\n"
+                               f"Result: ✅ WIN")
                     else:
-                        msg = (
-                            f"🛑 STOP LOSS HIT — {sig['pair']}\n"
-                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
-                            f"Exit:    ₹{current:,.2f}\n"
-                            f"P&L:     -{abs(pnl_pts):,.2f} pts (-{pnl_pct}%)\n"
-                            f"SL was:  ₹{sl:,.2f}\n"
-                            f"Result:  ❌ LOSS"
-                        )
+                        msg = (f"\U0001f6d1 STOP LOSS HIT — {pair_name}\n"
+                               f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
+                               f"Exit:   {fmt_v(current)}\n"
+                               f"P&L:    -{abs(pnl_pts):,.{dp}f} pts (-{pnl_pct}%)\n"
+                               f"Result: ❌ LOSS")
                     await telegram_service.send_message(msg)
 
                 except Exception as e:
@@ -838,7 +827,7 @@ async def agent_loop():
     while True:
         try:
             # Get current IST time
-            now_utc    = datetime.utcnow()
+            now_utc    = datetime.now(timezone.utc).replace(tzinfo=None)
             ist_offset = 330  # IST = UTC + 5:30 = 330 minutes
             ist_total  = now_utc.hour * 60 + now_utc.minute + ist_offset
             ist_hour   = (ist_total // 60) % 24
@@ -900,6 +889,25 @@ async def agent_loop():
                       f"— Running {unique_pairs}")
                 market_summary = await market_data_agent.get_market_summary(unique_pairs)
                 news_text = world_feed_service._last_feed if hasattr(world_feed_service, '_last_feed') else ""
+
+                # Pre-fetch VIX + PrevDay ONCE for all NSE pairs this cycle
+                _nse_cycle_data.clear()
+                if any(p in unique_pairs for p in ["NIFTY", "SENSEX"]):
+                    try:
+                        import yfinance as _yf
+                        _vd = _yf.download("^INDIAVIX", period="2d", interval="1d", progress=False)
+                        if isinstance(_vd.columns, pd.MultiIndex): _vd.columns = [c[0] for c in _vd.columns]
+                        if not _vd.empty: _nse_cycle_data["vix"] = float(_vd["Close"].iloc[-1])
+                        for _sp, _st in [("NIFTY", "^NSEI"), ("SENSEX", "^BSESN")]:
+                            _pd = _yf.download(_st, period="5d", interval="1d", progress=False)
+                            if isinstance(_pd.columns, pd.MultiIndex): _pd.columns = [c[0] for c in _pd.columns]
+                            if len(_pd) >= 2:
+                                _nse_cycle_data[f"{_sp}_bias"] = (
+                                    "BULLISH" if float(_pd["Close"].iloc[-2]) > float(_pd["Open"].iloc[-2])
+                                    else "BEARISH"
+                                )
+                    except Exception as _e:
+                        print(f"[PreFetch] {_e}")
 
                 for pair in unique_pairs:
                     await _run_agents_for_pair(pair, market_summary, news_text)

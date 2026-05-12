@@ -272,7 +272,10 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div>
         <div class="page-title" style="margin-bottom:2px;">⚔️ Strategic War Room</div>
-        <div style="font-size:11px;color:var(--muted)" id="last-updated">—</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:11px;color:var(--muted)" id="last-updated">—</div>
+          <span id="vix-display" style="font-size:13px;font-weight:600">VIX: —</span>
+        </div>
       </div>
       <button class="btn" onclick="loadDashboard()">Refresh</button>
     </div>
@@ -301,10 +304,12 @@
 
     <!-- Live Prices -->
     <div class="section-title">Live Prices</div>
-    <div class="grid-3" id="price-grid">
-      <div class="card"><div class="card-label">NIFTY</div><div class="card-value" id="p-NIFTY">—</div><div style="font-size:12px;margin-top:4px;" id="c-NIFTY">—</div></div>
-      <div class="card"><div class="card-label">SENSEX</div><div class="card-value" id="p-SENSEX">—</div><div style="font-size:12px;margin-top:4px;" id="c-SENSEX">—</div></div>
-      <div class="card"><div class="card-label">BTC/USD</div><div class="card-value" id="p-BTC">—</div><div style="font-size:12px;margin-top:4px;" id="c-BTC">—</div></div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px" id="price-grid">
+      <div class="card"><div class="card-label">NIFTY</div><div class="card-value" id="p-NIFTY">—</div><div style="font-size:12px;margin-top:4px" id="c-NIFTY">—</div></div>
+      <div class="card"><div class="card-label">SENSEX</div><div class="card-value" id="p-SENSEX">—</div><div style="font-size:12px;margin-top:4px" id="c-SENSEX">—</div></div>
+      <div class="card"><div class="card-label">BTC/USD</div><div class="card-value" id="p-BTC">—</div><div style="font-size:12px;margin-top:4px" id="c-BTC">—</div></div>
+      <div class="card"><div class="card-label">EUR/USD</div><div class="card-value" id="p-EURUSD">—</div><div style="font-size:12px;margin-top:4px" id="c-EURUSD">—</div></div>
+      <div class="card"><div class="card-label">USD/JPY</div><div class="card-value" id="p-USDJPY">—</div><div style="font-size:12px;margin-top:4px" id="c-USDJPY">—</div></div>
     </div>
 
     <!-- Latest Signals -->
@@ -353,14 +358,15 @@
   <div class="page" id="page-backtest">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
       <div class="page-title" style="margin-bottom:0">Backtest Results</div>
-      <select id="bt-pair" onchange="loadBacktest()" style="padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+      <select id="bt-pair" style="padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;">
         <option value="NIFTY">NIFTY</option>
         <option value="SENSEX">SENSEX</option>
         <option value="BTC/USD">BTC/USD</option>
         <option value="EUR/USD">EUR/USD</option>
         <option value="USD/JPY">USD/JPY</option>
       </select>
-      <span id="bt-status" style="font-size:12px;color:var(--muted)">Loading...</span>
+      <button class="btn" id="bt-run-btn" onclick="loadBacktest()">Run Backtest</button>
+      <span id="bt-status" style="font-size:12px;color:var(--muted)"></span>
     </div>
     <div class="grid-3" style="margin-bottom:20px;">
       <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="bt-wr">—</div></div>
@@ -441,12 +447,14 @@ function show(name) {
 // ── HELPERS ─────────────────────────────────────────────────────────
 function badge(type) {
   const map = {
-    BUY:  '<span class="badge b-buy">BUY</span>',
-    SELL: '<span class="badge b-sell">SELL</span>',
-    WIN:  '<span class="badge b-win">WIN ✅</span>',
-    LOSS: '<span class="badge b-loss">LOSS ❌</span>',
-    PENDING: '<span class="badge b-open">OPEN</span>',
-    EXPIRED: '<span class="badge b-exp">EXPIRED</span>',
+    BUY:          '<span class="badge b-buy">BUY</span>',
+    SELL:         '<span class="badge b-sell">SELL</span>',
+    'STRONG BUY':  '<span class="badge b-buy">⚡ STRONG BUY</span>',
+    'STRONG SELL': '<span class="badge b-sell">⚡ STRONG SELL</span>',
+    WIN:          '<span class="badge b-win">WIN ✅</span>',
+    LOSS:         '<span class="badge b-loss">LOSS ❌</span>',
+    PENDING:      '<span class="badge b-open">⏳ PENDING</span>',
+    EXPIRED:      '<span class="badge b-exp">EXPIRED</span>',
   };
   return map[type] || '<span class="badge b-exp">'+type+'</span>';
 }
@@ -461,13 +469,22 @@ function fmtPrice(n, pair) {
   const v = Number(n);
   if (pair === 'BTC/USD' || pair === 'NIFTY' || pair === 'SENSEX')
     return v.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  // EUR/USD, USD/JPY, and any other forex → 4 decimal places
+  // JPY pairs quote at 2dp (pip = 0.01); all other forex at 4dp
+  if (pair === 'USD/JPY') return v.toFixed(2);
   return v.toFixed(4);
 }
 
 function istTime(dt) {
   if (!dt) return '—';
-  return dt.slice(5,16);
+  try {
+    const d = new Date(dt.replace(' ', 'T') + 'Z'); // treat as UTC
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+      hour12: false
+    }).replace(',', '');
+  } catch(e) { return dt.slice(5,16); }
 }
 
 // ── DASHBOARD ───────────────────────────────────────────────────────
@@ -496,10 +513,11 @@ async function loadDashboard() {
   try {
     const p = await fetch('/api/prices').then(r=>r.json());
     const d = p.data || p;
-    [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC']].forEach(([key,id]) => {
+    [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC'],
+     ['EUR/USD','EURUSD'],['USD/JPY','USDJPY']].forEach(([key,id]) => {
       const pair = d[key];
       if (!pair) return;
-      document.getElementById('p-'+id).textContent = fmt(pair.price, key==='BTC/USD'?0:2);
+      document.getElementById('p-'+id).textContent = fmtPrice(pair.price, key);
       const chg = pair.change_pct || 0;
       const cel = document.getElementById('c-'+id);
       cel.textContent = (chg>=0?'▲ +':'▼ ') + chg.toFixed(2) + '%';
@@ -567,8 +585,11 @@ async function loadPaper() {
 async function loadBacktest() {
   const pair = document.getElementById('bt-pair').value;
   const enc  = encodeURIComponent(pair);
-  document.getElementById('bt-status').textContent = 'Loading... (may take 30s)';
-  document.getElementById('bt-tbody').innerHTML = '<tr><td colspan="5" class="empty">Calculating...</td></tr>';
+  const btn  = document.getElementById('bt-run-btn');
+  btn.disabled = true; btn.textContent = 'Running...';
+  document.getElementById('bt-status').textContent = '';
+  document.getElementById('bt-tbody').innerHTML =
+    '<tr><td colspan="5"><div style="text-align:center;padding:40px;color:var(--muted)">⏳ Running backtest for '+pair+'... this takes 30-60 seconds</div></td></tr>';
   try {
     const r = await fetch('/api/backtest?pair='+enc, {signal: AbortSignal.timeout(90000)}).then(r=>r.json());
     const wr = Math.round((r.win_rate||0)*100);
@@ -602,6 +623,8 @@ async function loadBacktest() {
   } catch(e) {
     document.getElementById('bt-status').textContent = 'Error: '+e.message;
     document.getElementById('bt-tbody').innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--red)">'+e.message+'</td></tr>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Run Backtest';
   }
 }
 
@@ -613,9 +636,11 @@ async function loadAgents() {
     const arr = (Array.isArray(s)?s:(s.value||[])).filter(x=>x.decision!=='HOLD');
     let wins=0;
     arr.forEach(x=>{ if(x.outcome==='WIN') wins++; });
-    const pend = arr.filter(x=>x.outcome==='PENDING').length;
+    const pend     = arr.filter(x=>x.outcome==='PENDING').length;
+    const resolved = arr.filter(x=>x.outcome==='WIN'||x.outcome==='LOSS').length;
+    const wrText   = resolved>0 ? Math.round((wins/resolved)*100)+'% ('+resolved+' resolved)' : '—';
     document.getElementById('a-total').textContent = arr.length;
-    document.getElementById('a-wr').textContent    = arr.length>0?Math.round((wins/arr.length)*100)+'%':'—';
+    document.getElementById('a-wr').textContent    = wrText;
     document.getElementById('a-sig').textContent   = arr.length;
     document.getElementById('a-db').textContent    = arr.length;
     document.getElementById('a-pend').textContent  = pend;
@@ -640,6 +665,17 @@ async function loadAgents() {
     // Load agent summary cards
     const summary = await fetch('/api/agent-summary').then(r=>r.json());
     const pairs = Object.values(summary.data || {});
+
+    // Update VIX display from first NSE pair's cached value
+    const nseP = pairs.find(p=>p.pair==='NIFTY'||p.pair==='SENSEX');
+    const vixEl = document.getElementById('vix-display');
+    if (vixEl && nseP && nseP.vix_value != null) {
+      const vixNum = Number(nseP.vix_value);
+      vixEl.textContent = 'VIX: ' + vixNum.toFixed(1);
+      vixEl.style.color = vixNum > 18 ? 'var(--red)' : 'var(--green)';
+      vixEl.title = vixNum > 18 ? 'VIX > 18: NIFTY/SENSEX signals BLOCKED' : 'VIX normal: signals active';
+    }
+
     const container = document.getElementById('agent-cards');
     if (!container) return;
 
@@ -708,8 +744,12 @@ async function loadAgents() {
 // ── AUTO REFRESH ─────────────────────────────────────────────────────
 loadDashboard();
 setInterval(loadDashboard, 3000);   // prices refresh every 3 seconds
-setInterval(loadPaper, 15000);      // signals/paper trades refresh every 15 seconds
-setInterval(loadAgents, 60000);     // agents refresh every 60 seconds
+setInterval(() => {
+  if (document.getElementById('page-paper') && document.getElementById('page-paper').classList.contains('active')) loadPaper();
+}, 15000);
+setInterval(() => {
+  if (document.getElementById('page-agents') && document.getElementById('page-agents').classList.contains('active')) loadAgents();
+}, 60000);
 </script>
 
 </body>
