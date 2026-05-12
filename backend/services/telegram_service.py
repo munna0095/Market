@@ -33,16 +33,16 @@ class TelegramService:
         Send trading signal to Telegram
         
         Example:
-        🟢 Boss Agent
-        ━━━━━━━━━━━━━━━━━
+        ðŸŸ¢ Boss Agent
+        â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
         Pair: NIFTY
         Decision: BUY
         Confidence: 82%
-        ━━━━━━━━━━━━━━━━━
+        â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
         Entry: 24175
         Stop Loss: 24050
         Target: 24300
-        ━━━━━━━━━━━━━━━━━
+        â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
         Reasoning: [2-line summary]
         """
         if not self.bot:
@@ -52,13 +52,13 @@ class TelegramService:
         try:
             # Decision emoji
             emoji_map = {
-                "BUY": "🟢",
-                "SELL": "🔴",
-                "HOLD": "🟡",
-                "STRONG BUY": "🟢🟢",
-                "STRONG SELL": "🔴🔴"
+                "BUY": "ðŸŸ¢",
+                "SELL": "ðŸ”´",
+                "HOLD": "ðŸŸ¡",
+                "STRONG BUY": "ðŸŸ¢ðŸŸ¢",
+                "STRONG SELL": "ðŸ”´ðŸ”´"
             }
-            emoji = emoji_map.get(decision, "⚪")
+            emoji = emoji_map.get(decision, "âšª")
             
             # Clean reasoning - remove markdown tables and headers
             clean_reasoning = ""
@@ -77,20 +77,20 @@ class TelegramService:
             # Format message
             message = (
                 f"{emoji} *{agent_name}*\n"
-                f"━━━━━━━━━━━━━━━━━\n"
+                f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                 f"*Symbol:* {pair}\n"
                 f"*Decision:* {decision}\n"
                 f"*Confidence:* {confidence}%\n"
-                f"━━━━━━━━━━━━━━━━━\n"
+                f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                 f"*Entry:* {entry if entry else 'N/A'}\n"
                 f"*Stop Loss:* {stop if stop else 'N/A'}\n"
                 f"*Target:* {target if target else 'N/A'}\n"
                 f"*R:R:* {f'1:{round(abs((float(target)-float(entry))/(float(entry)-float(stop))),1)}' if stop and target and entry and stop != entry else 'N/A'}\n"
             )
             if clean_reasoning:
-                message += f"━━━━━━━━━━━━━━━━━\n*Reasoning:* {clean_reasoning}\n"
+                message += f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n*Reasoning:* {clean_reasoning}\n"
 
-            message += f"━━━━━━━━━━━━━━━━━\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}"
+            message += f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\nâ° {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}"
             
             # Send to Telegram
             await self.bot.send_message(
@@ -115,12 +115,12 @@ class TelegramService:
             return False
         
         try:
-            message = f"""⚠️ *ERROR ALERT*
-━━━━━━━━━━━━━━━━━
+            message = f"""âš ï¸ *ERROR ALERT*
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 *Type:* {title}
 *Message:* {error_msg}
-━━━━━━━━━━━━━━━━━
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+â° {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             
             await self.bot.send_message(
                 chat_id=self.chat_id,
@@ -138,17 +138,17 @@ class TelegramService:
             return False
         
         try:
-            message = f"""📊 *DAILY TRADING REPORT*
-━━━━━━━━━━━━━━━━━
+            message = f"""ðŸ“Š *DAILY TRADING REPORT*
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 *Signals Generated:* {stats.get('total_signals', 0)}
 *Win Rate:* {stats.get('win_rate', 0):.1f}%
 *Best Agent:* {stats.get('best_agent', 'N/A')}
 *Total P&L:* {stats.get('pnl', 0):.2f}%
 *Average Confidence:* {stats.get('avg_confidence', 0):.1f}%
-━━━━━━━━━━━━━━━━━
-📈 Top Signal: {stats.get('top_signal', 'N/A')}
-━━━━━━━━━━━━━━━━━
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ“ˆ Top Signal: {stats.get('top_signal', 'N/A')}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+â° {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             
             await self.bot.send_message(
                 chat_id=self.chat_id,
@@ -167,18 +167,18 @@ class TelegramService:
         
         try:
             nifty_change = market_data.get('nifty_change_pct', 0)
-            emoji = "🟢" if nifty_change >= 0 else "🔴"
+            emoji = "ðŸŸ¢" if nifty_change >= 0 else "ðŸ”´"
             
             message = f"""{emoji} *MARKET STATUS*
-━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 *NIFTY:* {market_data.get('nifty_price', 'N/A')} ({nifty_change:+.2f}%)
 *SENSEX:* {market_data.get('sensex_price', 'N/A')} ({market_data.get('sensex_change', 0):+.2f}%)
 *VIX:* {market_data.get('vix', 'N/A')}
-━━━━━━━━━━━━━━━━━
-*FII Flow:* ₹{market_data.get('fii_flow', 0)}Cr
-*DII Flow:* ₹{market_data.get('dii_flow', 0)}Cr
-━━━━━━━━━━━━━━━━━
-⏰ {datetime.now().strftime('%H:%M:%S')}"""
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+*FII Flow:* â‚¹{market_data.get('fii_flow', 0)}Cr
+*DII Flow:* â‚¹{market_data.get('dii_flow', 0)}Cr
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+â° {datetime.now().strftime('%H:%M:%S')}"""
             
             await self.bot.send_message(
                 chat_id=self.chat_id,
@@ -197,12 +197,12 @@ class TelegramService:
         
         try:
             message = (
-                "🔱 *Arun-Dev Trading System ONLINE*\n"
-                "━━━━━━━━━━━━━━━━━\n"
+                "ðŸ”± *Arun-Dev Trading System ONLINE*\n"
+                "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                 "Monitoring: NIFTY | SENSEX | BTC | EUR/USD\n"
                 "AI Engine: Groq -> OpenRouter -> Gemini (auto-fallback)\n"
                 "Agent Loop: Every 15 minutes\n"
-                "━━━━━━━━━━━━━━━━━\n"
+                "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                 f"Started: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
             )
             
@@ -217,4 +217,18 @@ class TelegramService:
             print(f"[Telegram] Failed to send startup message: {e}")
             return False
 
-
+    async def send_message(self, text: str) -> bool:
+        """Send any plain text message to Telegram — used by watchdog, outcome checker, etc."""
+        if not self.bot:
+            print("[Telegram] Bot not initialized — skipping message")
+            return False
+        try:
+            await self.bot.send_message(
+                chat_id=self.chat_id,
+                text=text,
+                parse_mode="Markdown"
+            )
+            return True
+        except Exception as e:
+            print(f"[Telegram] send_message error: {e}")
+            return False
