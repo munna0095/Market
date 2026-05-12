@@ -1,8 +1,8 @@
 """
-Strategic War Room — FastAPI Backend v3.0
+Strategic War Room â€” FastAPI Backend v3.0
 TWO SEPARATE LOOPS:
-  1. price_loop()  → runs every 5 seconds  (prices only, fast)
-  2. agent_loop()  → runs every 60 seconds (AI analysis, slow)
+  1. price_loop()  â†’ runs every 5 seconds  (prices only, fast)
+  2. agent_loop()  â†’ runs every 60 seconds (AI analysis, slow)
 This gives real-time price updates without AI blocking the feed.
 """
 import asyncio
@@ -38,7 +38,7 @@ from services.database_service import (
     init_db, save_signal, get_signal_history, get_win_rate_by_pair
 )
 
-app = FastAPI(title="Strategic War Room — AI Trading Hub v3.0")
+app = FastAPI(title="Strategic War Room â€” AI Trading Hub v3.0")
 
 # Serve frontend static files
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -52,7 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Services & Agents ──────────────────────────────────────────────────────────
+# â”€â”€ Services & Agents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 trading_service   = TradingService()
 sentiment_service = SentimentService()
 yf_service        = YFinanceService()
@@ -66,7 +66,7 @@ quantitative_agent= QuantitativeAgent()
 orchestrator      = OrchestratorAgent()
 world_feed_service = WorldFeedService()
 
-# ── Graph Orchestrator (replaces manual sequential agent calls) ───────────────
+# â”€â”€ Graph Orchestrator (replaces manual sequential agent calls) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 graph = GraphOrchestrator(
     academic     = academic_agent,
     geo          = geopolitical_agent,
@@ -76,11 +76,13 @@ graph = GraphOrchestrator(
 )
 
 _latest_signals: dict = {}
+_loop_tasks:      dict = {"price": None, "agent": None, "outcome": None}
+_loop_heartbeat:  dict = {"price": None, "agent": None, "outcome": None}
 _world_news_cache: str = "Initializing global intelligence feed..."
 MONITORED_PAIRS = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
 
 
-# ── WebSocket Connection Manager ───────────────────────────────────────────────
+# â”€â”€ WebSocket Connection Manager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -107,7 +109,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ── REST Endpoints ─────────────────────────────────────────────────────────────
+# â”€â”€ REST Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.get("/")
 async def root():
     index_path = os.path.join(FRONTEND_DIR, "index.html")
@@ -216,12 +218,12 @@ async def signals_performance_endpoint():
 
 @app.get("/api/agent-summary")
 async def get_agent_summary():
-    """Returns what each agent last found — for readable UI display."""
+    """Returns what each agent last found â€” for readable UI display."""
     result = {}
     for pair, data in _latest_signals.items():
         result[pair] = {
             "pair":              pair,
-            "decision":          data.get("decision", "—"),
+            "decision":          data.get("decision", "â€”"),
             "confidence":        data.get("confidence", 0),
             "htf_1h":            data.get("htf_1h", "UNKNOWN"),
             "quant_summary":     data.get("quant_summary", "Not yet run"),
@@ -229,7 +231,7 @@ async def get_agent_summary():
             "geo_summary":       data.get("geo_summary", "Not yet run"),
             "boss_reasoning":    data.get("boss_reasoning", "Not yet run"),
             "indicators":        data.get("indicators", {}),
-            "last_updated":      data.get("datetime", "—"),
+            "last_updated":      data.get("datetime", "â€”"),
             "stop_loss":         data.get("stop_loss"),
             "target":            data.get("target"),
             "price":             data.get("price"),
@@ -254,7 +256,7 @@ async def get_token_usage():
 
 @app.post("/api/refresh_agents")
 async def refresh_agents_endpoint(pair: str = "EUR/USD"):
-    """Trigger immediate agent analysis for one pair — NO Telegram (manual refresh)."""
+    """Trigger immediate agent analysis for one pair â€” NO Telegram (manual refresh)."""
     actual_pair = pair.replace("_", "/").upper()
     try:
         market_summary = await market_data_agent.get_market_summary([actual_pair])
@@ -266,7 +268,7 @@ async def refresh_agents_endpoint(pair: str = "EUR/USD"):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# ── TradingView Webhook ────────────────────────────────────────────────────────
+# â”€â”€ TradingView Webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TradingViewAlert(BaseModel):
     symbol: str
@@ -303,12 +305,12 @@ async def tradingview_webhook(alert: TradingViewAlert):
     pair = symbol_map.get(alert.symbol.upper(), alert.symbol.upper())
 
     try:
-        # ── Log market status for Indian indices (no early return — TV alert always runs agents) ──
+        # â”€â”€ Log market status for Indian indices (no early return â€” TV alert always runs agents) â”€â”€
         from services.nse_service import is_nse_market_open, NSE_PAIRS
         if pair in NSE_PAIRS:
             market_status = is_nse_market_open()
             if not market_status["is_open"]:
-                print(f"[WEBHOOK] {pair} — {market_status['status']} — running analysis on TV price {alert.price}")
+                print(f"[WEBHOOK] {pair} â€” {market_status['status']} â€” running analysis on TV price {alert.price}")
 
         market_summary = await market_data_agent.get_market_summary([pair])
         news_text = market_summary.get("news_text", "")
@@ -353,7 +355,7 @@ async def tradingview_webhook(alert: TradingViewAlert):
                 "decision": "NO_SIGNAL",
                 "confidence": 0,
                 "price":    alert.price,
-                "reason":   "All AI providers busy or quota exceeded — try again in a few minutes",
+                "reason":   "All AI providers busy or quota exceeded â€” try again in a few minutes",
             }
         return {
             "ok":         True,
@@ -387,7 +389,7 @@ async def test_webhook():
     }
 
 
-# ── WebSocket Endpoint ─────────────────────────────────────────────────────────
+# â”€â”€ WebSocket Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -440,14 +442,15 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# ── LOOP 1: Fast Price Loop (every 5 seconds) ──────────────────────────────────
+# â”€â”€ LOOP 1: Fast Price Loop (every 5 seconds) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async def price_loop():
     """
-    Runs every 5 seconds. Fetches ONLY prices — no AI, no blocking.
+    Runs every 5 seconds. Fetches ONLY prices â€” no AI, no blocking.
     Gives near real-time price updates to the UI.
     """
-    print("[Price Loop] Starting — 1s interval")
+    print("[Price Loop] Starting â€” 1s interval")
     while True:
+        _loop_heartbeat["price"] = datetime.utcnow()
         try:
             for pair in MONITORED_PAIRS:
                 price_data = await market_data_agent.get_realtime_price(pair)
@@ -466,20 +469,20 @@ async def price_loop():
                 }))
         except Exception as e:
             print(f"[Price Loop] Error: {e}")
-        await asyncio.sleep(1)   # ← 1 second refresh (fast)
+        await asyncio.sleep(1)   # â† 1 second refresh (fast)
 
-# ── Shared helper: run graph agents for one pair and broadcast results ─────────
+# â”€â”€ Shared helper: run graph agents for one pair and broadcast results â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                                 news_text: str, send_telegram: bool = True,
                                 force_run: bool = False) -> None:
     from services.nse_service import is_nse_market_open, NSE_PAIRS
 
-    # ── Market closed check for Indian indices (skipped when force_run=True, e.g. webhook) ──
+    # â”€â”€ Market closed check for Indian indices (skipped when force_run=True, e.g. webhook) â”€â”€
     if target_pair in NSE_PAIRS and not force_run:
         market_status = is_nse_market_open()
         if not market_status["is_open"]:
             status_msg = (
-                f"[{target_pair}] {market_status['status']} — "
+                f"[{target_pair}] {market_status['status']} â€” "
                 f"{market_status['reason']} | "
                 f"Next open: {market_status.get('next_open', 'N/A')} | "
                 f"IST: {market_status['current_time_ist']}"
@@ -503,7 +506,7 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         print(f"[Agent Loop] No price data for {target_pair}, skipping")
         return
 
-    # ── VIX FILTER: skip BUY signals on high fear days ──────────────────
+    # â”€â”€ VIX FILTER: skip BUY signals on high fear days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if target_pair in ["NIFTY", "SENSEX"]:
         try:
             import yfinance as yf
@@ -515,7 +518,7 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                 vix_val = float(vix_data["Close"].iloc[-1])
                 print(f"[VIX] India VIX = {vix_val:.2f}")
                 if vix_val > 18:
-                    print(f"[VIX] HIGH FEAR ({vix_val:.2f} > 18) — skipping {target_pair}")
+                    print(f"[VIX] HIGH FEAR ({vix_val:.2f} > 18) â€” skipping {target_pair}")
                     _latest_signals[target_pair] = _latest_signals.get(target_pair, {})
                     _latest_signals[target_pair]["vix_blocked"] = True
                     _latest_signals[target_pair]["vix_value"] = vix_val
@@ -526,9 +529,9 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                     _latest_signals[target_pair]["vix_blocked"] = False
         except Exception as vix_err:
             print(f"[VIX] Error: {vix_err}")
-    # ── END VIX FILTER ──────────────────────────────────────────────────
+    # â”€â”€ END VIX FILTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    # ── PREV DAY BIAS: only trade with yesterday's close direction ──────
+    # â”€â”€ PREV DAY BIAS: only trade with yesterday's close direction â”€â”€â”€â”€â”€â”€
     if target_pair in ["NIFTY", "SENSEX"]:
         try:
             import yfinance as yf
@@ -547,7 +550,7 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                 _latest_signals[target_pair]["prev_day_bias"] = prev_day_bias
         except Exception as bias_err:
             print(f"[PrevDay] Error: {bias_err}")
-    # ── END PREV DAY BIAS ────────────────────────────────────────────────
+    # â”€â”€ END PREV DAY BIAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     try:
         final = await graph.run(
@@ -709,11 +712,12 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         }))
 
 
-# ── LOOP 3: Outcome Checker (every 1 hour) ────────────────────────────────────
+# â”€â”€ LOOP 3: Outcome Checker (every 1 hour) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async def outcome_checker_loop():
-    """Every hour: check price movement for PENDING signals → WIN/LOSS."""
+    """Every hour: check price movement for PENDING signals â†’ WIN/LOSS."""
     await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
     while True:
+        _loop_heartbeat["outcome"] = datetime.utcnow()
         try:
             from services.database_service import get_pending_outcomes, update_outcome
             import yfinance as yf
@@ -779,7 +783,7 @@ async def outcome_checker_loop():
                             outcome = "NEUTRAL"
 
                     if outcome == "PENDING":
-                        continue  # SL/TP not hit yet — leave in PENDING state
+                        continue  # SL/TP not hit yet â€” leave in PENDING state
 
                     update_outcome(
                         signal_id = sig["id"],
@@ -798,21 +802,21 @@ async def outcome_checker_loop():
 
                     if outcome == "WIN":
                         msg = (
-                            f"🎯 TARGET HIT — {sig['pair']}\n"
-                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
-                            f"Exit:    ₹{current:,.2f}\n"
+                            f"ðŸŽ¯ TARGET HIT â€” {sig['pair']}\n"
+                            f"Signal:  {sig['decision']} @ â‚¹{entry:,.2f}\n"
+                            f"Exit:    â‚¹{current:,.2f}\n"
                             f"P&L:     +{abs(pnl_pts):,.2f} pts (+{pnl_pct}%)\n"
-                            f"TP was:  ₹{tp:,.2f}\n"
-                            f"Result:  ✅ WIN"
+                            f"TP was:  â‚¹{tp:,.2f}\n"
+                            f"Result:  âœ… WIN"
                         )
                     else:
                         msg = (
-                            f"🛑 STOP LOSS HIT — {sig['pair']}\n"
-                            f"Signal:  {sig['decision']} @ ₹{entry:,.2f}\n"
-                            f"Exit:    ₹{current:,.2f}\n"
+                            f"ðŸ›‘ STOP LOSS HIT â€” {sig['pair']}\n"
+                            f"Signal:  {sig['decision']} @ â‚¹{entry:,.2f}\n"
+                            f"Exit:    â‚¹{current:,.2f}\n"
                             f"P&L:     -{abs(pnl_pts):,.2f} pts (-{pnl_pct}%)\n"
-                            f"SL was:  ₹{sl:,.2f}\n"
-                            f"Result:  ❌ LOSS"
+                            f"SL was:  â‚¹{sl:,.2f}\n"
+                            f"Result:  âŒ LOSS"
                         )
                     await telegram_service.send_message(msg)
 
@@ -825,16 +829,17 @@ async def outcome_checker_loop():
         await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
 
 
-# ── LOOP 2: AI Agent Loop — SMART session-aware ────────────────────────────────
+# â”€â”€ LOOP 2: AI Agent Loop â€” SMART session-aware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async def agent_loop():
     """
-    SMART activation — only runs agents during relevant market sessions.
+    SMART activation â€” only runs agents during relevant market sessions.
     Saves 70-80% tokens vs 24/7 mode.
     """
-    print("[Agent Loop] Starting — SMART session-aware mode")
+    print("[Agent Loop] Starting â€” SMART session-aware mode")
     await asyncio.sleep(10)
 
     while True:
+        _loop_heartbeat["agent"] = datetime.utcnow()
         try:
             # Get current IST time
             now_utc    = datetime.utcnow()
@@ -847,7 +852,7 @@ async def agent_loop():
 
             pairs_to_run = []
 
-            # ── NIFTY / SENSEX: only during NSE hours Mon-Fri ──
+            # â”€â”€ NIFTY / SENSEX: only during NSE hours Mon-Fri â”€â”€
             NSE_OPEN  = 9 * 60 + 20
             NSE_CLOSE = 15 * 60 + 0
 
@@ -865,7 +870,7 @@ async def agent_loop():
             if weekday < 5 and NSE_OPEN <= ist_time <= NSE_CLOSE and in_best_window:
                 pairs_to_run += ["NIFTY", "SENSEX"]
 
-            # ── BTC: Asian + London + NY session opens ──
+            # â”€â”€ BTC: Asian + London + NY session opens â”€â”€
             BTC_WINDOWS = [
                 (2*60,  2*60+45),   # 2:00-2:45 AM IST (Asian open)
                 (13*60, 13*60+45),  # 1:00-1:45 PM IST (London open)
@@ -876,7 +881,7 @@ async def agent_loop():
                     pairs_to_run.append("BTC/USD")
                     break
 
-            # ── Forex: London + NY sessions only ──
+            # â”€â”€ Forex: London + NY sessions only â”€â”€
             FOREX_WINDOWS = [
                 (13*60+30, 16*60),  # 1:30-4:00 PM IST (London)
                 (18*60+30, 21*60),  # 6:30-9:00 PM IST (NY)
@@ -896,7 +901,7 @@ async def agent_loop():
 
             if unique_pairs:
                 print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
-                      f"— Running {unique_pairs}")
+                      f"â€” Running {unique_pairs}")
                 market_summary = await market_data_agent.get_market_summary(unique_pairs)
                 news_text = world_feed_service._last_feed if hasattr(world_feed_service, '_last_feed') else ""
 
@@ -905,7 +910,7 @@ async def agent_loop():
                     await asyncio.sleep(5)
             else:
                 print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
-                      f"— No active sessions, sleeping")
+                      f"â€” No active sessions, sleeping")
 
         except Exception as e:
             print(f"[Agent Loop] Error: {e}")
@@ -913,9 +918,89 @@ async def agent_loop():
         await asyncio.sleep(900)  # check every 15 minutes
 
 @app.on_event("startup")
+
+# -- LOOP 4: Watchdog -- auto-restarts dead background loops -----------
+async def watchdog_loop():
+    """Checks every 5 min if background loops are alive. Restarts if dead."""
+    await asyncio.sleep(120)  # Give loops 2 min to start up first
+    while True:
+        try:
+            now = datetime.utcnow()
+            restarted = []
+
+            for name, task in _loop_tasks.items():
+                if task is None or task.done():
+                    print(f"[Watchdog] DEAD loop detected: {name}_loop — restarting...")
+                    if name == "price":
+                        _loop_tasks["price"]   = asyncio.create_task(price_loop())
+                    elif name == "agent":
+                        _loop_tasks["agent"]   = asyncio.create_task(agent_loop())
+                    elif name == "outcome":
+                        _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
+                    restarted.append(name)
+
+            if restarted:
+                msg = f"⚠️ WATCHDOG: Restarted dead loops: {', '.join(restarted)}\nSystem self-healed at {now.strftime('%H:%M IST')}"
+                await telegram_service.send_message(msg)
+                print(f"[Watchdog] Restarted: {restarted} — Telegram sent")
+            else:
+                print(f"[Watchdog] All loops alive at {now.strftime('%H:%M')} UTC")
+
+        except Exception as e:
+            print(f"[Watchdog] Error: {e}")
+
+        await asyncio.sleep(300)  # Check every 5 minutes
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check — shows live status of all background loops."""
+    now = datetime.utcnow()
+    loop_status = {}
+
+    for name, task in _loop_tasks.items():
+        hb  = _loop_heartbeat.get(name)
+        age = int((now - hb).total_seconds()) if hb else None
+        alive = task is not None and not task.done()
+
+        if not alive:
+            state = "DEAD"
+        elif age is None:
+            state = "STARTING"
+        elif name == "price" and age < 30:
+            state = "OK"
+        elif name == "outcome" and age < 120:
+            state = "OK"
+        elif name == "agent" and age < 1800:
+            state = "OK"
+        else:
+            state = "STALE"
+
+        loop_status[name] = {
+            "alive":          alive,
+            "last_heartbeat": hb.strftime("%Y-%m-%d %H:%M:%S UTC") if hb else "never",
+            "age_seconds":    age,
+            "state":          state,
+        }
+
+    from services.database_service import get_signal_history
+    recent = get_signal_history(limit=1)
+    last_signal = recent[0]["datetime"] if recent else "none"
+
+    overall = "OK" if all(v["state"] == "OK" for v in loop_status.values()) else "DEGRADED"
+
+    return {
+        "service":        "Strategic War Room v3.0",
+        "overall":        overall,
+        "server_time_utc": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "loops":          loop_status,
+        "last_signal":    last_signal,
+        "db_signals":     len(get_signal_history(limit=1000)),
+    }
+
 async def startup_event():
     init_db()
-    print("[DB] Database initialized — all tables ready")
+    print("[DB] Database initialized â€” all tables ready")
 
     print("[Startup] Strategic War Room v3.0 initializing...")
 
@@ -930,16 +1015,18 @@ async def startup_event():
     # AngelOne real-time feed for NIFTY + SENSEX
     if angel_service.login():
         asyncio.create_task(angel_service.refresh_prices_loop(["NIFTY", "SENSEX"], interval=3))
-        print("[Startup] AngelOne real-time feed started — NIFTY + SENSEX every 3s")
+        print("[Startup] AngelOne real-time feed started â€” NIFTY + SENSEX every 3s")
     else:
-        print("[Startup] AngelOne login failed — using yfinance fallback for prices")
+        print("[Startup] AngelOne login failed â€” using yfinance fallback for prices")
 
-    asyncio.create_task(price_loop())              # Fast: 1s
-    asyncio.create_task(agent_loop())              # Slow: 900s
-    asyncio.create_task(outcome_checker_loop())    # Hourly WIN/LOSS checker
-    print("[Startup] Outcome checker started — runs every 1 hour")
-    print("[Startup] All loops started.")
+    _loop_tasks["price"]   = asyncio.create_task(price_loop())           # Fast: 1s
+    _loop_tasks["agent"]   = asyncio.create_task(agent_loop())           # Slow: 900s
+    _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop()) # WIN/LOSS: 60s
+    asyncio.create_task(watchdog_loop())                                 # Watchdog: 300s
+    print("[Startup] All 4 loops started (price / agent / outcome / watchdog)")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
