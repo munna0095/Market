@@ -920,6 +920,7 @@ async def watchdog_loop():
     await asyncio.sleep(120)        # wait 2 min after boot
     while True:
         try:
+            restarted = []
             for name, task in list(_loop_tasks.items()):
                 if task is None or task.done():
                     print(f"[Watchdog] {name} loop DEAD — restarting")
@@ -929,6 +930,9 @@ async def watchdog_loop():
                         _loop_tasks["agent"]   = asyncio.create_task(agent_loop())
                     elif name == "outcome":
                         _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
+                    restarted.append(name)
+            if restarted:
+                await telegram_service.send_watchdog_alert(restarted)
         except Exception as e:
             print(f"[Watchdog] Error: {e}")
         await asyncio.sleep(300)    # check every 5 minutes
