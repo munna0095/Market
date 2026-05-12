@@ -456,6 +456,15 @@ function fmt(n, dec=2) {
   return Number(n).toLocaleString('en-IN', {maximumFractionDigits: dec});
 }
 
+function fmtPrice(n, pair) {
+  if (n == null || n === '' || isNaN(Number(n))) return 'N/A';
+  const v = Number(n);
+  if (pair === 'BTC/USD' || pair === 'NIFTY' || pair === 'SENSEX')
+    return v.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  // EUR/USD, USD/JPY, and any other forex → 4 decimal places
+  return v.toFixed(4);
+}
+
 function istTime(dt) {
   if (!dt) return '—';
   return dt.slice(5,16);
@@ -507,9 +516,9 @@ async function loadDashboard() {
         <td style="font-family:monospace">${istTime(s.datetime)}</td>
         <td><b>${s.pair}</b></td>
         <td>${badge(s.decision)}</td>
-        <td>${fmt(s.price_at_signal)}</td>
-        <td style="color:var(--red)">${s.stop_loss?fmt(s.stop_loss):'N/A'}</td>
-        <td style="color:var(--green)">${s.target?fmt(s.target):'N/A'}</td>
+        <td>${fmtPrice(s.price_at_signal, s.pair)}</td>
+        <td style="color:var(--red)">${s.stop_loss?fmtPrice(s.stop_loss, s.pair):'N/A'}</td>
+        <td style="color:var(--green)">${s.target?fmtPrice(s.target, s.pair):'N/A'}</td>
         <td>${s.confidence}%</td>
         <td>${badge(s.outcome||'PENDING')}</td>
       </tr>`
@@ -532,9 +541,9 @@ async function loadPaper() {
         <td style="font-family:monospace">${istTime(s.datetime)}</td>
         <td><b>${s.pair}</b></td>
         <td>${badge(s.decision)}</td>
-        <td>${fmt(s.price_at_signal)}</td>
-        <td style="color:var(--red)">${s.stop_loss?fmt(s.stop_loss):'N/A'}</td>
-        <td style="color:var(--green)">${s.target?fmt(s.target):'N/A'}</td>
+        <td>${fmtPrice(s.price_at_signal, s.pair)}</td>
+        <td style="color:var(--red)">${s.stop_loss?fmtPrice(s.stop_loss, s.pair):'N/A'}</td>
+        <td style="color:var(--green)">${s.target?fmtPrice(s.target, s.pair):'N/A'}</td>
         <td>${s.confidence}%</td>
         <td>${badge(s.outcome||'PENDING')}</td>
       </tr>`;
@@ -660,7 +669,7 @@ async function loadAgents() {
           <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">ADX</div><div style="font-weight:600">${ind.adx?Number(ind.adx).toFixed(1):'—'}</div></div>
           <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">EMA20</div><div style="font-weight:600">${ind.ema20?Number(ind.ema20).toFixed(0):'—'}</div></div>
           <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">EMA50</div><div style="font-weight:600">${ind.ema50?Number(ind.ema50).toFixed(0):'—'}</div></div>
-          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">Price</div><div style="font-weight:600">${p.price?Number(p.price).toFixed(0):'—'}</div></div>
+          <div style="text-align:center"><div style="font-size:11px;color:var(--muted)">Price</div><div style="font-weight:600">${p.price?fmtPrice(p.price, p.pair):'—'}</div></div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -684,8 +693,8 @@ async function loadAgents() {
           </div>
         </div>
         <div style="margin-top:10px;font-size:12px;color:var(--muted)">
-          SL: ${p.stop_loss?'₹'+Number(p.stop_loss).toFixed(2):'N/A'} &nbsp;|&nbsp;
-          TP: ${p.target?'₹'+Number(p.target).toFixed(2):'N/A'} &nbsp;|&nbsp;
+          SL: ${p.stop_loss?fmtPrice(p.stop_loss, p.pair):'N/A'} &nbsp;|&nbsp;
+          TP: ${p.target?fmtPrice(p.target, p.pair):'N/A'} &nbsp;|&nbsp;
           Last run: ${p.last_updated||'—'}
         </div>
       </div>`;
