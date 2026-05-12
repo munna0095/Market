@@ -190,21 +190,48 @@ def _is_correct(signal: str, cur_idx: int, df: pd.DataFrame,
 
 _NSE_PAIRS = {"NIFTY", "SENSEX"}
 
+# IST = UTC + 5:30  (no external deps — stdlib only)
+from datetime import timezone as _tz, timedelta as _td
+_IST = _tz(_td(hours=5, minutes=30))
+
+
+def _to_ist(dt):
+    """
+    Convert any datetime to IST.
+    - tz-aware  : astimezone(IST)
+    - tz-naive  : yfinance NSE timestamps are already IST — attach tzinfo directly
+    """
+    if getattr(dt, "tzinfo", None) is not None:
+        return dt.astimezone(_IST)
+    return dt.replace(tzinfo=_IST)   # NSE tz-naive → treat as IST
+
 
 def _is_nse_valid_session(dt) -> bool:
-    """Only 9:30-11:30 and 13:30-15:00 IST are high-quality 15M sessions."""
+    """
+    EXACTLY mirrors the live agent_loop session windows:
+      Morning   : 9:20 AM – 10:30 AM IST  (opening momentum)
+      Afternoon : 1:30 PM –  2:30 PM IST  (closing trend)
+      Days      : Monday – Friday only
+    Choppy zone (10:30 AM – 1:30 PM) is intentionally excluded.
+    """
     try:
-        # If timestamp is tz-aware, convert to IST first
-        if getattr(dt, "tzinfo", None) is not None:
-            import pytz
-            dt = dt.astimezone(pytz.timezone("Asia/Kolkata"))
-            ist_min = dt.hour * 60 + dt.minute
-        else:
-            # Assume UTC, add 330 min offset
-            ist_min = (dt.hour * 60 + dt.minute + 330) % 1440
-        return (570 <= ist_min <= 690) or (810 <= ist_min <= 900)
+        dt_ist = _to_ist(dt)
+
+        # ── Weekday guard (Mon=0 … Fri=4, Sat=5, Sun=6) ──────────────
+        if dt_ist.weekday() >= 5:
+            return False
+
+        ist_min = dt_ist.hour * 60 + dt_ist.minute
+
+        MORNING_START   = 9  * 60 + 20   # 560 min
+        MORNING_END     = 10 * 60 + 30   # 630 min
+        AFTERNOON_START = 13 * 60 + 30   # 810 min
+        AFTERNOON_END   = 14 * 60 + 30   # 870 min
+
+        return (MORNING_START <= ist_min <= MORNING_END) or                (AFTERNOON_START <= ist_min <= AFTERNOON_END)
+
     except Exception:
-        return True
+        return False   # fail closed — never trade on bad timestamp
 
 
 _THRESHOLDS = {
@@ -281,7 +308,12 @@ def run_backtest(pair: str) -> dict:
                 correct_n += 1
 
         idx_val = row.get("index", row.get("Datetime", row.get("Date", "")))
-        dt_str  = idx_val.strftime("%Y-%m-%d %H:%M") if hasattr(idx_val, "strftime") else str(idx_val)
+        # Convert to IST for display — keeps UI consistent with live signal times
+        if hasattr(idx_val, "strftime"):
+            dt_ist  = _to_ist(idx_val)
+            dt_str  = dt_ist.strftime("%m-%d %H:%M IST")
+        else:
+            dt_str = str(idx_val)
 
         results_by_day.append({
             "datetime":   dt_str,
