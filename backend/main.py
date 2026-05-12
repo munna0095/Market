@@ -76,6 +76,8 @@ graph = GraphOrchestrator(
 )
 
 _latest_signals: dict = {}
+_loop_tasks:     dict = {"price": None, "agent": None, "outcome": None}
+_loop_heartbeat: dict = {"price": None, "agent": None, "outcome": None}
 _loop_tasks:      dict = {"price": None, "agent": None, "outcome": None}
 _loop_heartbeat:  dict = {"price": None, "agent": None, "outcome": None}
 _world_news_cache: str = "Initializing global intelligence feed..."
@@ -925,6 +927,8 @@ async def watchdog_loop():
     await asyncio.sleep(120)  # Give loops 2 min to start up first
     while True:
         try:
+            _loop_heartbeat["agent"] = __import__("datetime").datetime.utcnow()
+            _loop_heartbeat["outcome"] = __import__("datetime").datetime.utcnow()
             now = datetime.utcnow()
             restarted = []
 
@@ -1034,19 +1038,91 @@ async def _init_external_services():
         print(f"[AngelOne] Login error: {e} — using yfinance fallback")
 
 
+
+async def _init_external_services():
+    """Telegram + AngelOne init in background — never blocks server startup."""
+    import asyncio as _aio
+    await _aio.sleep(3)
+    try:
+        await _aio.wait_for(telegram_service.send_test_message(), timeout=10.0)
+        print("[Telegram] Startup message sent")
+    except Exception as e:
+        print(f"[Telegram] Startup message skipped: {e}")
+    try:
+        _lp = _aio.get_event_loop()
+        ok = await _aio.wait_for(_lp.run_in_executor(None, angel_service.login), timeout=15.0)
+        if ok:
+            _aio.create_task(angel_service.refresh_prices_loop(["NIFTY", "SENSEX"], interval=3))
+            print("[AngelOne] Real-time feed started")
+        else:
+            print("[AngelOne] Login failed — yfinance fallback")
+    except Exception as e:
+        print(f"[AngelOne] Login error: {e} — yfinance fallback")
+
+
+async def watchdog_loop():
+    """Every 5 min: restart any dead background loop + Telegram alert."""
+    import asyncio as _aio
+    await _aio.sleep(120)
+    while True:
+        try:
+            now = __import__("datetime").datetime.utcnow()
+            restarted = []
+            for name, task in _loop_tasks.items():
+                if task is None or task.done():
+                    print(f"[Watchdog] DEAD: {name}_loop — restarting")
+                    if name == "price":
+                        _loop_tasks["price"]   = _aio.create_task(price_loop())
+                    elif name == "agent":
+                        _loop_tasks["agent"]   = _aio.create_task(agent_loop())
+                    elif name == "outcome":
+                        _loop_tasks["outcome"] = _aio.create_task(outcome_checker_loop())
+                    restarted.append(name)
+            if restarted:
+                await telegram_service.send_message(
+                    f"\u26a0\ufe0f WATCHDOG: Restarted {', '.join(restarted)} at {now.strftime('%H:%M')} UTC"
+                )
+        except Exception as e:
+            print(f"[Watchdog] Error: {e}")
+        await _aio.sleep(300)
+
+
+@app.get("/api/health")
+async def health_check():
+    import asyncio as _aio
+    now = __import__("datetime").datetime.utcnow()
+    loops = {}
+    for name, task in _loop_tasks.items():
+        hb  = _loop_heartbeat.get(name)
+        age = int((now - hb).total_seconds()) if hb else None
+        alive = task is not None and not task.done()
+        if not alive:           state = "DEAD"
+        elif age is None:       state = "STARTING"
+        elif name == "price"   and age < 30:   state = "OK"
+        elif name == "outcome" and age < 120:  state = "OK"
+        elif name == "agent"   and age < 1800: state = "OK"
+        else:                   state = "STALE"
+        loops[name] = {"alive": alive, "age_seconds": age, "state": state,
+                       "last_heartbeat": hb.strftime("%H:%M:%S UTC") if hb else "never"}
+    recent = get_signal_history(limit=1)
+    return {
+        "overall":   "OK" if all(v["state"]=="OK" for v in loops.values()) else "DEGRADED",
+        "loops":     loops,
+        "last_signal": recent[0]["datetime"] if recent else "none",
+        "server_utc":  now.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
 @app.on_event("startup")
 async def startup_event():
-    # FAST — completes in milliseconds, never blocks server startup
+    """FAST — completes in milliseconds. External services init in background."""
     init_db()
-    print("[Startup] DB ready. Launching all loops...")
-
+    print("[Startup] DB ready")
     _loop_tasks["price"]   = asyncio.create_task(price_loop())
     _loop_tasks["agent"]   = asyncio.create_task(agent_loop())
     _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
     asyncio.create_task(watchdog_loop())
-    asyncio.create_task(_init_external_services())  # Telegram + AngelOne in background
-
-    print("[Startup] Server ready. External services initializing in background.")
+    asyncio.create_task(_init_external_services())
+    print("[Startup] All loops started. Server ready.")
 
 if __name__ == "__main__":
     import uvicorn
