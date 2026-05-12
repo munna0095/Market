@@ -60,7 +60,7 @@ def _add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     c = df["Close"]
 
-    # ── RSI(14) Wilder ────────────────────────────────────────────────────────
+    # â”€â”€ RSI(14) Wilder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     delta    = c.diff()
     gain     = delta.clip(lower=0)
     loss     = (-delta).clip(lower=0)
@@ -69,18 +69,18 @@ def _add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     rs       = avg_gain / avg_loss.replace(0, float("nan"))
     df["rsi"] = (100 - 100 / (1 + rs)).round(2)
 
-    # ── EMA(9) and EMA(21) ────────────────────────────────────────────────────
+    # â”€â”€ EMA(9) and EMA(21) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     df["ema9"]  = c.ewm(span=9,  adjust=False).mean().round(6)
     df["ema21"] = c.ewm(span=21, adjust=False).mean().round(6)
 
-    # ── MACD(12, 26, 9) ───────────────────────────────────────────────────────
+    # â”€â”€ MACD(12, 26, 9) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ema12           = c.ewm(span=12, adjust=False).mean()
     ema26           = c.ewm(span=26, adjust=False).mean()
     df["macd"]      = (ema12 - ema26).round(6)
     df["macd_sig"]  = df["macd"].ewm(span=9, adjust=False).mean().round(6)
     df["macd_hist"] = (df["macd"] - df["macd_sig"]).round(6)
 
-    # ── ADX(14) — Wilder smoothing ────────────────────────────────────────────
+    # â”€â”€ ADX(14) â€” Wilder smoothing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     high  = df["High"]
     low   = df["Low"]
     prev_close = c.shift(1)
@@ -111,16 +111,16 @@ def _add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     dx       = 100 * (di_plus - di_minus).abs() / (di_plus + di_minus).replace(0, float("nan"))
     df["adx"] = dx.ewm(com=period - 1, adjust=False).mean().round(2)
 
-    # ── Break-of-Structure (8-bar swing = 2hr structure on 15M) ─────────────────
+    # â”€â”€ Break-of-Structure (8-bar swing = 2hr structure on 15M) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     df["swing_high"] = high.rolling(8).max().shift(1)
     df["swing_low"]  = low.rolling(8).min().shift(1)
     df["bos_bull"]   = c > df["swing_high"]
     df["bos_bear"]   = c < df["swing_low"]
 
-    # ── Volume percentile (rolling rank over 100 bars) ────────────────────────
+    # â”€â”€ Volume percentile (rolling rank over 100 bars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     vol = df["Volume"].astype(float).fillna(0)
     if vol.sum() == 0:
-        df["vol_pct"] = 1.0   # forex/index — no real volume, treat as always valid
+        df["vol_pct"] = 1.0   # forex/index â€” no real volume, treat as always valid
     else:
         df["vol_pct"] = vol.rolling(100).rank(pct=True).round(4)
 
@@ -190,48 +190,66 @@ def _is_correct(signal: str, cur_idx: int, df: pd.DataFrame,
 
 _NSE_PAIRS = {"NIFTY", "SENSEX"}
 
-# IST = UTC + 5:30  (no external deps — stdlib only)
+# IST = UTC + 5h30m  (stdlib only — no pytz dependency)
 from datetime import timezone as _tz, timedelta as _td
-_IST = _tz(_td(hours=5, minutes=30))
+_IST    = _tz(_td(hours=5, minutes=30))
+_IST_TD = _td(hours=5, minutes=30)
 
 
-def _to_ist(dt):
+def _to_ist_minutes(dt) -> int:
     """
-    Convert any datetime to IST.
-    - tz-aware  : astimezone(IST)
-    - tz-naive  : yfinance NSE timestamps are already IST — attach tzinfo directly
+    Return IST minutes-from-midnight for any datetime.
+    yfinance returns EITHER:
+      - tz-aware UTC  -> astimezone(IST) then read h/m
+      - tz-naive UTC  -> add 330 min offset (yfinance default for NSE 15m)
+    Returns -1 on error so caller filters the candle out.
     """
-    if getattr(dt, "tzinfo", None) is not None:
-        return dt.astimezone(_IST)
-    return dt.replace(tzinfo=_IST)   # NSE tz-naive → treat as IST
+    try:
+        if getattr(dt, "tzinfo", None) is not None:
+            dt_ist = dt.astimezone(_IST)
+            return dt_ist.hour * 60 + dt_ist.minute
+        else:
+            # tz-naive = assume UTC (yfinance standard for NSE 15m data)
+            return (dt.hour * 60 + dt.minute + 330) % 1440
+    except Exception:
+        return -1
+
+
+def _weekday_ist(dt) -> int:
+    """Weekday in IST (Mon=0...Sun=6). UTC weekday == IST weekday for all NSE hours."""
+    try:
+        if getattr(dt, "tzinfo", None) is not None:
+            return dt.astimezone(_IST).weekday()
+        return dt.weekday()
+    except Exception:
+        return 5  # treat unknown as weekend -> filter out
 
 
 def _is_nse_valid_session(dt) -> bool:
     """
-    EXACTLY mirrors the live agent_loop session windows:
-      Morning   : 9:20 AM – 10:30 AM IST  (opening momentum)
-      Afternoon : 1:30 PM –  2:30 PM IST  (closing trend)
-      Days      : Monday – Friday only
-    Choppy zone (10:30 AM – 1:30 PM) is intentionally excluded.
+    EXACTLY mirrors live agent_loop windows (Mon-Fri only):
+      Morning   : 9:20 AM - 10:30 AM IST  (opening momentum)
+      Afternoon : 1:30 PM -  2:30 PM IST  (closing trend)
+    Choppy zone 10:30 AM - 1:30 PM excluded — same as live filter.
     """
     try:
-        dt_ist = _to_ist(dt)
+        if _weekday_ist(dt) >= 5:
+            return False                 # weekend
 
-        # ── Weekday guard (Mon=0 … Fri=4, Sat=5, Sun=6) ──────────────
-        if dt_ist.weekday() >= 5:
-            return False
+        ist_min = _to_ist_minutes(dt)
+        if ist_min < 0:
+            return False                 # bad timestamp
 
-        ist_min = dt_ist.hour * 60 + dt_ist.minute
+        MORNING_START   = 9  * 60 + 20  # 560
+        MORNING_END     = 10 * 60 + 30  # 630
+        AFTERNOON_START = 13 * 60 + 30  # 810
+        AFTERNOON_END   = 14 * 60 + 30  # 870
 
-        MORNING_START   = 9  * 60 + 20   # 560 min
-        MORNING_END     = 10 * 60 + 30   # 630 min
-        AFTERNOON_START = 13 * 60 + 30   # 810 min
-        AFTERNOON_END   = 14 * 60 + 30   # 870 min
-
-        return (MORNING_START <= ist_min <= MORNING_END) or                (AFTERNOON_START <= ist_min <= AFTERNOON_END)
+        return (MORNING_START <= ist_min <= MORNING_END) or \
+               (AFTERNOON_START <= ist_min <= AFTERNOON_END)
 
     except Exception:
-        return False   # fail closed — never trade on bad timestamp
+        return False   # fail closed
 
 
 _THRESHOLDS = {
@@ -257,7 +275,7 @@ def run_backtest(pair: str) -> dict:
     df = _add_indicators(df)
     df = df.reset_index(drop=False)   # keep datetime as a regular column
 
-    # ── NSE session filter ────────────────────────────────────────────────────
+    # â”€â”€ NSE session filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     dt_col = df.columns[0]   # first col after reset_index is the datetime index
     if pair in _NSE_PAIRS:
         df["session_ok"] = df[dt_col].apply(
@@ -308,11 +326,11 @@ def run_backtest(pair: str) -> dict:
                 correct_n += 1
 
         idx_val = row.get("index", row.get("Datetime", row.get("Date", "")))
-        # Convert to IST for display — keeps UI consistent with live signal times
-        if hasattr(idx_val, "strftime"):
-            dt_ist  = _to_ist(idx_val)
-            dt_str  = dt_ist.strftime("%m-%d %H:%M IST")
-        else:
+        # Display times in IST so UI matches live signal format
+        if hasattr(idx_val, 'strftime'):
+            ist_min = _to_ist_minutes(idx_val)
+            ist_h, ist_m = divmod(ist_min, 60)
+            dt_str = f"{idx_val.strftime('%m-%d')} {ist_h:02d}:{ist_m:02d} IST"
             dt_str = str(idx_val)
 
         results_by_day.append({
