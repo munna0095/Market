@@ -62,6 +62,14 @@ from services.angelone_service import angel_service
 from services.database_service import (
     init_db, save_signal, get_signal_history, get_win_rate_by_pair
 )
+from services.trading_calculator import (
+    TradingCalculator,
+    PipCalculation,
+    PositionSizing,
+    ProfitSimulation,
+    MultiTargetPlan,
+    TradeQuality
+)
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # ── CACHE CONTROL MIDDLEWARE ───────────────────────────────────────────────────
@@ -644,6 +652,202 @@ class TradingViewAlert(BaseModel):
     high: Optional[float] = None
     low: Optional[float] = None
     open: Optional[float] = None
+
+
+# ── Trading Calculator Request Models ──────────────────────────────────────────
+
+class CalculatePipsRequest(BaseModel):
+    pair: str
+    entry: float
+    target: float
+    stop_loss: float
+
+
+class CalculatePositionSizeRequest(BaseModel):
+    account_balance: float
+    risk_percentage: float
+    stop_loss_pips: float
+    pip_value: float
+    leverage: int = 100
+
+
+class SimulateProfitRequest(BaseModel):
+    pair: str
+    entry: float
+    target: float
+    stop_loss: float
+    lot_size: float
+    investment_amount: float
+
+
+class EnhancedSignalRequest(BaseModel):
+    pair: str
+    entry: float
+    target: float
+    stop_loss: float
+    confidence: int
+    account_balance: float = 10000.0
+    risk_percentage: float = 2.0
+    leverage: int = 100
+
+
+# ── Trading Calculator Endpoints ──────────────────────────────────────────────
+
+@app.post("/api/calculate/pips", tags=["calculations"])
+async def calculate_pips(request: CalculatePipsRequest):
+    """Calculate pip movement and risk-reward ratio"""
+    try:
+        result = TradingCalculator.calculate_pips(
+            pair=request.pair,
+            entry=request.entry,
+            target=request.target,
+            stop_loss=request.stop_loss
+        )
+        return result.__dict__
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/api/calculate/position-size", tags=["calculations"])
+async def calculate_position_size(request: CalculatePositionSizeRequest):
+    """Calculate optimal position size based on risk management"""
+    try:
+        result = TradingCalculator.calculate_position_size(
+            account_balance=request.account_balance,
+            risk_percentage=request.risk_percentage,
+            stop_loss_pips=request.stop_loss_pips,
+            pip_value=request.pip_value,
+            leverage=request.leverage
+        )
+        return result.__dict__
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/api/calculate/profit-simulation", tags=["calculations"])
+async def simulate_profit(request: SimulateProfitRequest):
+    """Simulate real profit/loss for a trade"""
+    try:
+        # First calculate pips
+        pips = TradingCalculator.calculate_pips(
+            pair=request.pair,
+            entry=request.entry,
+            target=request.target,
+            stop_loss=request.stop_loss
+        )
+
+        result = TradingCalculator.simulate_profit(
+            entry=request.entry,
+            target=request.target,
+            stop_loss=request.stop_loss,
+            lot_size=request.lot_size,
+            pip_value=pips.pip_value,
+            target_pips=pips.target_pips,
+            stop_loss_pips=pips.stop_loss_pips,
+            investment_amount=request.investment_amount
+        )
+        return result.__dict__
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/api/calculate/enhanced-signal", tags=["calculations"])
+async def get_enhanced_signal(request: EnhancedSignalRequest):
+    """
+    Get complete trade analysis with all calculations.
+    This is the MAIN endpoint for the new professional dashboard.
+    """
+    try:
+        # 1. Calculate pips
+        pips = TradingCalculator.calculate_pips(
+            pair=request.pair,
+            entry=request.entry,
+            target=request.target,
+            stop_loss=request.stop_loss
+        )
+
+        # 2. Calculate position size
+        position = TradingCalculator.calculate_position_size(
+            account_balance=request.account_balance,
+            risk_percentage=request.risk_percentage,
+            stop_loss_pips=pips.stop_loss_pips,
+            pip_value=pips.pip_value,
+            leverage=request.leverage
+        )
+
+        # 3. Simulate profit
+        profit_sim = TradingCalculator.simulate_profit(
+            entry=request.entry,
+            target=request.target,
+            stop_loss=request.stop_loss,
+            lot_size=position.recommended_lot_size,
+            pip_value=pips.pip_value,
+            target_pips=pips.target_pips,
+            stop_loss_pips=pips.stop_loss_pips,
+            investment_amount=position.margin_required
+        )
+
+        # 4. Multi-target plan
+        is_jpy = any(jpy in request.pair for jpy in TradingCalculator.JPY_PAIRS)
+        multi_targets = TradingCalculator.calculate_multi_targets(
+            entry=request.entry,
+            final_target=request.target,
+            stop_loss=request.stop_loss,
+            lot_size=position.recommended_lot_size,
+            pip_value=pips.pip_value,
+            is_jpy=is_jpy
+        )
+
+        # 5. Trade quality
+        trade_quality = TradingCalculator.calculate_trade_quality(
+            confidence=request.confidence,
+            rr_ratio=pips.risk_reward_ratio,
+            volatility_indicator=1.5,  # TODO: Get from agent data (ATR)
+            trend_strength=75.0  # TODO: Get from agent data (ADX)
+        )
+
+        return {
+            "pair": request.pair,
+            "entry": request.entry,
+            "target": request.target,
+            "stop_loss": request.stop_loss,
+            "confidence": request.confidence,
+            "pips": pips.__dict__,
+            "position": position.__dict__,
+            "profit": profit_sim.__dict__,
+            "targets": multi_targets.__dict__,
+            "quality": trade_quality.__dict__
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.get("/api/signals/enhanced-history", tags=["signals"])
+async def get_enhanced_signals_history(limit: int = 10):
+    """Get signal history with enhanced calculations"""
+    try:
+        from services.database_service import get_signals
+        raw_signals = get_signals(limit=limit)
+
+        enhanced_signals = []
+        for sig in raw_signals:
+            # Calculate enhanced data for each signal
+            pips = TradingCalculator.calculate_pips(
+                pair=sig["pair"],
+                entry=sig["price_at_signal"],
+                target=sig.get("target", sig["price_at_signal"] * 1.02),
+                stop_loss=sig.get("stop_loss", sig["price_at_signal"] * 0.98)
+            )
+
+            enhanced_signals.append({
+                **sig,
+                "pips": pips.__dict__,
+                "rr_ratio": pips.risk_reward_ratio
+            })
+
+        return enhanced_signals
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 
 @app.post("/webhook/tradingview")
