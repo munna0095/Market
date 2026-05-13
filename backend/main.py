@@ -297,6 +297,8 @@ def validate_pair(pair: str) -> str:
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
+        self.message_queue: list[str] = []
+        self.flushing = False
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -309,16 +311,41 @@ class ConnectionManager:
         logger.info(f"WebSocket disconnected. Total active: {len(self.active_connections)}")
 
     async def broadcast(self, message: str):
+        """Queue message for batched broadcast."""
+        self.message_queue.append(message)
+
+    async def flush_queue(self):
+        """Flush queued messages to all active connections."""
+        if not self.message_queue or self.flushing:
+            return
+
+        self.flushing = True
+        messages = self.message_queue[:]
+        self.message_queue.clear()
+
         dead = []
         for conn in self.active_connections:
-            try:
-                await conn.send_text(message)
-            except Exception:
-                dead.append(conn)
+            for message in messages:
+                try:
+                    await conn.send_text(message)
+                except Exception:
+                    dead.append(conn)
+                    break
+
         for d in dead:
             self.disconnect(d)
 
+        self.flushing = False
+
 manager = ConnectionManager()
+
+
+# Background task to flush WebSocket messages every 100ms
+async def flush_websocket_messages():
+    """Periodically flush batched WebSocket messages."""
+    while True:
+        await asyncio.sleep(0.1)  # Flush every 100ms
+        await manager.flush_queue()
 
 # ── REST Endpoints ─────────────────────────────────────────────────────────────
 @app.get("/")
@@ -1454,7 +1481,9 @@ async def startup_event():
     _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
     _loop_tasks["news_refresh"] = asyncio.create_task(_world_news_refresh_loop())
     asyncio.create_task(watchdog_loop())
+    asyncio.create_task(flush_websocket_messages())
     print("[Startup] Outcome checker + watchdog started — runs every 1 hour")
+    print("[Startup] WebSocket message batching enabled (flush every 100ms)")
     print("[Startup] All loops started.")
 
 if __name__ == "__main__":
