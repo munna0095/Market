@@ -315,7 +315,7 @@
           <span id="vix-display" style="font-size:13px;font-weight:600">VIX: —</span>
         </div>
       </div>
-      <button class="btn" onclick="loadDashboard()">Refresh</button>
+      <button class="btn" id="btn-refresh-dashboard" onclick="loadDashboard()">Refresh</button>
     </div>
 
     <!-- Token Usage -->
@@ -370,7 +370,7 @@
   <div class="page" id="page-paper-panel" role="tabpanel" aria-labelledby="nav-paper">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div class="page-title" style="margin-bottom:0">Paper Trades</div>
-      <button class="btn" onclick="loadPaper()">Refresh</button>
+      <button class="btn" id="btn-refresh-paper" onclick="loadPaper()">Refresh</button>
     </div>
     <div class="grid-4">
       <div class="card"><div class="card-label">Total Signals</div><div class="card-value" id="pt-total">—</div></div>
@@ -576,68 +576,95 @@ function istTime(dt) {
 
 // ── DASHBOARD ───────────────────────────────────────────────────────
 async function loadDashboard() {
-  const now = new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'});
-  document.getElementById('last-updated').textContent = 'Updated: ' + now + ' IST';
+  const btn = document.getElementById('btn-refresh-dashboard');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    btn.style.opacity = '0.6';
+    btn.style.cursor = 'not-allowed';
+  }
 
-  // Tokens
   try {
-    const t = await safeFetch('/api/token-usage');
-    if (!t) return;
-    const gp = Math.min(Math.round((t.groq/500000)*100), 100);
-    document.getElementById('groq-fill').style.width = gp + '%';
-    document.getElementById('groq-fill').style.background = gp > 80 ? 'var(--red)' : 'var(--blue)';
-    document.getElementById('groq-info').textContent =
-      (t.groq/1000).toFixed(1)+'K / 500K (' + gp + '%) — ' + (t.groq_remaining/1000).toFixed(0) + 'K remaining';
-    const op = Math.min(2 + Math.round((t.openrouter/200000)*10), 100);
-    document.getElementById('or-fill').style.width = op + '%';
-    document.getElementById('or-info').textContent = (t.openrouter/1000).toFixed(1) + 'K used (unlimited)';
-    const gep = Math.min(Math.round((t.gemini/1000000)*100), 100);
-    document.getElementById('gem-fill').style.width = Math.max(gep,1) + '%';
-    document.getElementById('gem-info').textContent =
-      (t.gemini/1000).toFixed(1)+'K / 1M (' + gep + '%)';
-  } catch(e) {}
+    const now = new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'});
+    document.getElementById('last-updated').textContent = 'Updated: ' + now + ' IST';
 
-  // Prices
-  try {
-    const p = await safeFetch('/api/prices');
-    if (!p) return;
-    const d = p.data || p;
-    [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC'],
-     ['EUR/USD','EURUSD'],['USD/JPY','USDJPY']].forEach(([key,id]) => {
-      const pair = d[key];
-      if (!pair) return;
-      document.getElementById('p-'+id).textContent = fmtPrice(pair.price, key);
-      const chg = pair.change_pct || 0;
-      const cel = document.getElementById('c-'+id);
-      cel.textContent = (chg>=0?'▲ +':'▼ ') + chg.toFixed(2) + '%';
-      cel.style.color = chg>=0 ? 'var(--green)' : 'var(--red)';
-    });
-  } catch(e) {}
+    try {
+      const t = await safeFetch('/api/token-usage');
+      if (t) {
+        const gp = Math.min(Math.round((t.groq/500000)*100), 100);
+        document.getElementById('groq-fill').style.width = gp + '%';
+        document.getElementById('groq-fill').style.background = gp > 80 ? 'var(--red)' : 'var(--blue)';
+        document.getElementById('groq-info').textContent =
+          (t.groq/1000).toFixed(1)+'K / 500K (' + gp + '%) — ' + (t.groq_remaining/1000).toFixed(0) + 'K remaining';
+        const op = Math.min(2 + Math.round((t.openrouter/200000)*10), 100);
+        document.getElementById('or-fill').style.width = op + '%';
+        document.getElementById('or-info').textContent = (t.openrouter/1000).toFixed(1) + 'K used (unlimited)';
+        const gep = Math.min(Math.round((t.gemini/1000000)*100), 100);
+        document.getElementById('gem-fill').style.width = Math.max(gep,1) + '%';
+        document.getElementById('gem-info').textContent =
+          (t.gemini/1000).toFixed(1)+'K / 1M (' + gep + '%)';
+      }
+    } catch(e) {}
 
-  // Latest signals
-  try {
-    const s = await safeFetch('/api/signals/history?limit=10');
-    if (!s) return;
-    const arr = Array.isArray(s) ? s : (s.value || []);
-    const rows = arr.filter(x=>x.decision!=='HOLD').slice(0,8).map(s =>
-      `<tr class="${s.outcome==='WIN'?'row-win':s.outcome==='LOSS'?'row-loss':''}">
-        <td style="font-family:monospace">${istTime(s.datetime)}</td>
-        <td><b>${s.pair}</b></td>
-        <td>${badge(s.decision)}</td>
-        <td>${fmtPrice(s.price_at_signal, s.pair)}</td>
-        <td style="color:var(--red)">${s.stop_loss?fmtPrice(s.stop_loss, s.pair):'N/A'}</td>
-        <td style="color:var(--green)">${s.target?fmtPrice(s.target, s.pair):'N/A'}</td>
-        <td>${s.confidence}%</td>
-        <td>${badge(s.outcome||'PENDING')}</td>
-      </tr>`
-    ).join('');
-    document.getElementById('dash-signals').innerHTML = rows ||
-      '<tr><td colspan="8" class="empty">No signals yet — agents will fire during market sessions</td></tr>';
-  } catch(e) {}
+    try {
+      const p = await safeFetch('/api/prices');
+      if (p) {
+        const d = p.data || p;
+        [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC'],
+         ['EUR/USD','EURUSD'],['USD/JPY','USDJPY']].forEach(([key,id]) => {
+          const pair = d[key];
+          if (!pair) return;
+          document.getElementById('p-'+id).textContent = fmtPrice(pair.price, key);
+          const chg = pair.change_pct || 0;
+          const cel = document.getElementById('c-'+id);
+          cel.textContent = (chg>=0?'▲ +':'▼ ') + chg.toFixed(2) + '%';
+          cel.style.color = chg>=0 ? 'var(--green)' : 'var(--red)';
+        });
+      }
+    } catch(e) {}
+
+    try {
+      const s = await safeFetch('/api/signals/history?limit=10');
+      if (s) {
+        const arr = Array.isArray(s) ? s : (s.value || []);
+        const rows = arr.filter(x=>x.decision!=='HOLD').slice(0,8).map(s =>
+          `<tr class="${s.outcome==='WIN'?'row-win':s.outcome==='LOSS'?'row-loss':''}">
+            <td style="font-family:monospace">${istTime(s.datetime)}</td>
+            <td><b>${s.pair}</b></td>
+            <td>${badge(s.decision)}</td>
+            <td>${fmtPrice(s.price_at_signal, s.pair)}</td>
+            <td style="color:var(--red)">${s.stop_loss?fmtPrice(s.stop_loss, s.pair):'N/A'}</td>
+            <td style="color:var(--green)">${s.target?fmtPrice(s.target, s.pair):'N/A'}</td>
+            <td>${s.confidence}%</td>
+            <td>${badge(s.outcome||'PENDING')}</td>
+          </tr>`
+        ).join('');
+        document.getElementById('dash-signals').innerHTML = rows ||
+          '<tr><td colspan="8" class="empty">No signals yet — agents will fire during market sessions</td></tr>';
+      }
+    } catch(e) {}
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
+  }
 }
 
 // ── PAPER TRADES ────────────────────────────────────────────────────
 async function loadPaper() {
+  const btn = document.getElementById('btn-refresh-paper');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    btn.style.opacity = '0.6';
+    btn.style.cursor = 'not-allowed';
+  }
+
   try {
     const s = await fetch('/api/signals/history?limit=100').then(r=>r.json());
     const arr = (Array.isArray(s) ? s : (s.value || [])).filter(x=>x.decision!=='HOLD');
@@ -668,6 +695,13 @@ async function loadPaper() {
   } catch(e) {
     document.getElementById('pt-tbody').innerHTML =
       '<tr><td colspan="8" class="empty" style="color:var(--red)">Error loading: '+e.message+'</td></tr>';
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
   }
 }
 
@@ -676,7 +710,11 @@ async function loadBacktest() {
   const pair = document.getElementById('bt-pair').value;
   const enc  = encodeURIComponent(pair);
   const btn  = document.getElementById('bt-run-btn');
-  btn.disabled = true; btn.textContent = 'Running...';
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  btn.style.opacity = '0.6';
+  btn.style.cursor = 'not-allowed';
   document.getElementById('bt-status').textContent = '';
   document.getElementById('bt-tbody').innerHTML =
     '<tr><td colspan="5"><div style="text-align:center;padding:40px;color:var(--muted)">⏳ Running backtest for '+pair+'... this takes 30-60 seconds</div></td></tr>';
@@ -714,7 +752,10 @@ async function loadBacktest() {
     document.getElementById('bt-status').textContent = 'Error: '+e.message;
     document.getElementById('bt-tbody').innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--red)">'+e.message+'</td></tr>';
   } finally {
-    btn.disabled = false; btn.textContent = 'Run Backtest';
+    btn.disabled = false;
+    btn.textContent = originalText;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
   }
 }
 
