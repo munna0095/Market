@@ -143,7 +143,7 @@ class BaseAgent:
         providers = [
             ("groq",     "groq",       lambda: self._call_groq(prompt)),
             ("nemotron", "openrouter", lambda: self._call_openrouter(prompt, "nvidia/nemotron-3-super-120b-a12b:free")),
-            ("hy3",      "openrouter", lambda: self._call_openrouter(prompt, "tencent/hy3-preview:free")),
+            # Removed: tencent/hy3-preview (404 — not available on OpenRouter)
             ("gemini",   "gemini",     lambda: self._call_gemini(prompt)),
         ]
         for name, pkey, call in providers:

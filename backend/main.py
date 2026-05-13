@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()  # Load .env FIRST before any service initializes
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from services.trading_service import TradingService
@@ -64,7 +64,97 @@ def verify_api_key(x_api_key: str = Header(None)):
         raise HTTPException(status_code=403, detail="Invalid API key")
     return True
 
-# ── Services & Agents ──────────────────────────────────────────────────────────
+# ── RCO FEED (Real-time Commentary Output) ─────────────────────────────────────
+from collections import deque
+import logging
+
+logger = logging.getLogger(__name__)
+
+_rco_buffer: deque = deque(maxlen=100)
+_rco_subscribers: list = []
+
+def rco_log(agent: str, pair: str, message: str, level: str = "info"):
+    """Log real-time commentary from agents for frontend streaming.
+
+    Args:
+        agent: "QUANT", "ACADEMIC", "GEO", "BOSS", "GATE", "ORCHESTRATOR", "PRICE"
+        pair: "NIFTY", "BTC/USD", "BANKNIFTY", or "GLOBAL" for system messages
+        message: Human-readable commentary
+        level: "info" | "warn" | "error" | "signal"
+    """
+    # Get IST time
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    ist_offset = 330  # IST = UTC + 5:30 = 330 minutes
+    ist_total = now_utc.hour * 60 + now_utc.minute + ist_offset
+    ist_hour = (ist_total // 60) % 24
+    ist_minute = ist_total % 60
+
+    entry = {
+        "ts": f"{ist_hour:02d}:{ist_minute:02d}:{now_utc.second:02d}",
+        "agent": agent,
+        "pair": pair,
+        "msg": message,
+        "level": level
+    }
+    _rco_buffer.append(entry)
+
+    # Notify all SSE subscribers
+    for q in list(_rco_subscribers):
+        try:
+            q.put_nowait(entry)
+        except:
+            pass  # Subscriber lagging or disconnected
+
+    # Also log to Python logger
+    if logger:
+        log_level = getattr(logging, level.upper(), logging.INFO)
+        logger.log(log_level, f"[{agent}] {pair}: {message}")
+
+# ── BANKNIFTY TREND CALCULATION =====
+_bnf_prices: deque = deque(maxlen=200)
+
+def _simple_ema(prices: list, period: int) -> float:
+    """Calculate EMA (Exponential Moving Average) for a list of prices."""
+    if len(prices) < period:
+        return prices[-1] if prices else 0
+
+    multiplier = 2.0 / (period + 1)
+    ema = sum(prices[:period]) / period
+
+    for price in prices[period:]:
+        ema = price * multiplier + ema * (1 - multiplier)
+
+    return ema
+
+def _calculate_bnf_trend(banknifty_data: dict) -> str:
+    """Calculate BankNifty 15-min trend using EMA9 vs EMA21.
+
+    Returns: "UP", "DOWN", or "NEUTRAL"
+    """
+    if not banknifty_data or "ltp" not in banknifty_data:
+        return "NEUTRAL"
+
+    current_price = banknifty_data["ltp"]
+    _bnf_prices.append(current_price)
+
+    if len(_bnf_prices) < 21:
+        return "NEUTRAL"
+
+    prices = list(_bnf_prices)
+    ema9 = _simple_ema(prices, 9)
+    ema21 = _simple_ema(prices, 21)
+
+    # Hysteresis: avoid whipsaw from noise (0.02%)
+    threshold = ema21 * 0.0002
+
+    if ema9 > ema21 + threshold:
+        return "UP"
+    elif ema9 < ema21 - threshold:
+        return "DOWN"
+    else:
+        return "NEUTRAL"
+
+# ── Services & Agents ──────────────────────────────────────────────────────────────
 trading_service   = TradingService()
 sentiment_service = SentimentService()
 yf_service        = YFinanceService()
@@ -87,9 +177,13 @@ graph = GraphOrchestrator(
     orchestrator = orchestrator,
 )
 
+# Inject rco_log into orchestrator for real-time logging
+from agents.orchestrator import _set_rco_log
+_set_rco_log(rco_log)
+
 _latest_signals: dict = {}
 _nse_cycle_data: dict = {}
-_loop_tasks: dict = {"price": None, "agent": None, "outcome": None}
+_loop_tasks: dict = {"price": None, "agent": None, "outcome": None, "news_refresh": None}
 _world_news_cache: str = "Initializing global intelligence feed..."
 MONITORED_PAIRS = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
 
@@ -265,6 +359,45 @@ async def get_token_usage():
         "groq_remaining":    500_000   - groq_used,
         "gemini_remaining":  1_000_000 - gemini_used,
     }
+
+@app.get("/api/rco/latest")
+async def rco_latest(limit: int = 50):
+    """Get latest RCO entries (non-streaming fallback for polling)"""
+    return {
+        "data": list(_rco_buffer)[-limit:],
+        "total": len(_rco_buffer),
+        "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    }
+
+@app.get("/api/rco/stream")
+async def rco_stream():
+    """Server-Sent Events stream for real-time RCO feed"""
+    from fastapi.responses import StreamingResponse
+
+    q = asyncio.Queue(maxsize=20)
+    _rco_subscribers.append(q)
+
+    async def event_generator():
+        try:
+            # Send last 20 buffered entries first (catch-up)
+            for entry in list(_rco_buffer)[-20:]:
+                yield f"data: {json.dumps(entry)}\n\n"
+                await asyncio.sleep(0.01)
+
+            # Stream new entries
+            while True:
+                try:
+                    entry = await asyncio.wait_for(q.get(), timeout=30)
+                    yield f"data: {json.dumps(entry)}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'ping': 1})}\n\n"  # Keepalive
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if q in _rco_subscribers:
+                _rco_subscribers.remove(q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/refresh_agents")
 async def refresh_agents_endpoint(pair: str = "EUR/USD", _: bool = Depends(verify_api_key)):
@@ -601,6 +734,69 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         decision   = final.get("decision", "HOLD")
         confidence = int(final.get("confidence", 0))
 
+        # ===== BANKNIFTY CONFIRMATION GATE (for NIFTY/SENSEX only) =====
+        if target_pair in ["NIFTY", "SENSEX"]:
+            bnf_trend = _nse_cycle_data.get("bnf_trend", "NEUTRAL")
+
+            if decision == "BUY" and bnf_trend != "UP":
+                # BUY signal but BankNifty is NOT trending up — REJECT
+                rco_log("GATE", target_pair,
+                    f"❌ BUY rejected — BankNifty trend is {bnf_trend}, not UP",
+                    level="warn")
+                decision = "HOLD"
+                confidence = max(0, confidence - 20)  # Penalize confidence
+
+            elif decision == "SELL" and bnf_trend != "DOWN":
+                # SELL signal but BankNifty is NOT trending down — REJECT
+                rco_log("GATE", target_pair,
+                    f"❌ SELL rejected — BankNifty trend is {bnf_trend}, not DOWN",
+                    level="warn")
+                decision = "HOLD"
+                confidence = max(0, confidence - 20)
+
+            elif decision in ["BUY", "SELL"] and bnf_trend in ["UP", "DOWN"]:
+                # BankNifty CONFIRMS the signal
+                rco_log("GATE", target_pair,
+                    f"✅ {decision} CONFIRMED by BankNifty trend {bnf_trend}",
+                    level="signal")
+                confidence = min(100, confidence + 5)  # +5% confidence boost
+
+            else:
+                rco_log("GATE", target_pair,
+                    f"ℹ️ {decision} | BankNifty trend: {bnf_trend}",
+                    level="info")
+
+        # ===== CONFIDENCE GATE — Prevents low-quality signals from DB =====
+        signal_should_save = False
+
+        if decision == "HOLD":
+            # HOLD only saved if VERY high confidence (85%+, rare)
+            if confidence >= 85:
+                rco_log("GATE", target_pair, f"✅ HOLD saved with high confidence ({confidence}%)", level="signal")
+                signal_should_save = True
+            else:
+                rco_log("GATE", target_pair, f"❌ HOLD rejected — confidence {confidence}% < 85", level="warn")
+        elif decision == "BUY":
+            # BUY needs >= 65% confidence
+            if confidence >= 65:
+                rco_log("GATE", target_pair, f"✅ BUY saved ({confidence}%)", level="signal")
+                signal_should_save = True
+            else:
+                rco_log("GATE", target_pair, f"❌ BUY rejected — confidence {confidence}% < 65", level="warn")
+        elif decision == "SELL":
+            # SELL needs >= 65% confidence
+            if confidence >= 65:
+                rco_log("GATE", target_pair, f"✅ SELL saved ({confidence}%)", level="signal")
+                signal_should_save = True
+            else:
+                rco_log("GATE", target_pair, f"❌ SELL rejected — confidence {confidence}% < 65", level="warn")
+        else:
+            # Unknown decision type
+            rco_log("GATE", target_pair, f"⚠️ Unknown decision '{decision}' — rejected", level="error")
+
+        if not signal_should_save:
+            rco_log("GATE", target_pair, f"⏭️ Signal filtered by confidence gate", level="info")
+
         # ATR-based stop-loss and target calculation
         stop_loss = None
         target    = None
@@ -639,36 +835,39 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         _latest_signals[target_pair]["target"]    = target
         _latest_signals[target_pair]["datetime"]  = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
 
-        try:
-            def _safe_float(val):
-                """Extract scalar float from any value safely."""
-                if val is None:
-                    return None
-                if isinstance(val, dict):
-                    val = list(val.values())[0] if val else None
-                try:
-                    return float(val)
-                except (TypeError, ValueError):
-                    return None
+        if signal_should_save:
+            try:
+                def _safe_float(val):
+                    """Extract scalar float from any value safely."""
+                    if val is None:
+                        return None
+                    if isinstance(val, dict):
+                        val = list(val.values())[0] if val else None
+                    try:
+                        return float(val)
+                    except (TypeError, ValueError):
+                        return None
 
-            sig_id = save_signal(
-                pair       = target_pair,
-                decision   = final.get("decision", "HOLD"),
-                confidence = int(final.get("confidence", 0)),
-                price      = _safe_float(final.get("price")) or 0.0,
-                rsi        = _safe_float(indicators.get("rsi")),
-                macd       = _safe_float(indicators.get("macd")),
-                adx        = _safe_float(indicators.get("adx")),
-                regime     = "TRENDING" if (_safe_float(indicators.get("adx")) or 0) > 20
-                             else "RANGING",
-                provider   = final.get("provider", "unknown"),
-                source     = "webhook" if force_run else "agent_loop",
-                stop_loss  = stop_loss,
-                target     = target,
-            )
-            print(f"[DB] Signal saved -> {target_pair} {final.get('decision')} id={sig_id}")
-        except Exception as e:
-            print(f"[DB] Save signal error: {e}")
+                sig_id = save_signal(
+                    pair       = target_pair,
+                    decision   = final.get("decision", "HOLD"),
+                    confidence = int(final.get("confidence", 0)),
+                    price      = _safe_float(final.get("price")) or 0.0,
+                    rsi        = _safe_float(indicators.get("rsi")),
+                    macd       = _safe_float(indicators.get("macd")),
+                    adx        = _safe_float(indicators.get("adx")),
+                    regime     = "TRENDING" if (_safe_float(indicators.get("adx")) or 0) > 20
+                                 else "RANGING",
+                    provider   = final.get("provider", "unknown"),
+                    source     = "webhook" if force_run else "agent_loop",
+                    stop_loss  = stop_loss,
+                    target     = target,
+                )
+                print(f"[DB] Signal saved -> {target_pair} {final.get('decision')} id={sig_id}")
+            except Exception as e:
+                print(f"[DB] Save signal error: {e}")
+        else:
+            print(f"[DB] Signal NOT saved — filtered by confidence gate")
 
         # Send signal to Telegram (only if confidence >= 65% and auto cycle)
         if send_telegram and confidence >= 65 and decision in ["BUY", "SELL", "STRONG BUY", "STRONG SELL"]:
@@ -901,9 +1100,20 @@ async def agent_loop():
                 print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
                       f"— Running {unique_pairs}")
                 market_summary = await market_data_agent.get_market_summary(unique_pairs)
+
+                # Ensure geo_service has fresh news
+                if hasattr(world_feed_service, 'fetch_world_headlines'):
+                    try:
+                        fresh_headlines = await world_feed_service.fetch_world_headlines()
+                        if fresh_headlines:
+                            _world_news_cache = fresh_headlines
+                            rco_log("GEO", "GLOBAL", "Fetched fresh headlines", level="info")
+                    except Exception as e:
+                        rco_log("GEO", "GLOBAL", f"News fetch failed: {str(e)}", level="warn")
+
                 news_text = world_feed_service._last_feed if hasattr(world_feed_service, '_last_feed') else ""
 
-                # Pre-fetch VIX + PrevDay ONCE for all NSE pairs this cycle
+                # Pre-fetch VIX + PrevDay + BankNifty ONCE for all NSE pairs this cycle
                 _nse_cycle_data.clear()
                 if any(p in unique_pairs for p in ["NIFTY", "SENSEX"]):
                     try:
@@ -919,6 +1129,17 @@ async def agent_loop():
                                     "BULLISH" if float(_pd["Close"].iloc[-2]) > float(_pd["Open"].iloc[-2])
                                     else "BEARISH"
                                 )
+
+                        # Fetch BankNifty for confirmation filter
+                        _bnf = _yf.download("^NSEBANK", period="2d", interval="1m", progress=False)
+                        if isinstance(_bnf.columns, pd.MultiIndex): _bnf.columns = [c[0] for c in _bnf.columns]
+                        if not _bnf.empty:
+                            bnf_price = float(_bnf["Close"].iloc[-1])
+                            _nse_cycle_data["banknifty"] = {"ltp": bnf_price}
+                            # Calculate BankNifty trend
+                            bnf_trend = _calculate_bnf_trend(_nse_cycle_data["banknifty"])
+                            _nse_cycle_data["bnf_trend"] = bnf_trend
+                            rco_log("PRICE", "NSE", f"BankNifty: {bnf_price:.2f} | Trend: {bnf_trend}", level="info")
                     except Exception as _e:
                         print(f"[PreFetch] {_e}")
 
@@ -933,6 +1154,25 @@ async def agent_loop():
             print(f"[Agent Loop] Error: {e}")
 
         await asyncio.sleep(900)  # check every 15 minutes
+
+
+# ── LOOP 3.5: World News Refresh ───────────────────────────────────
+async def _world_news_refresh_loop():
+    """Refresh geopolitical news cache every 2 hours"""
+    global _world_news_cache
+    await asyncio.sleep(10)  # Wait 10s after boot before first refresh
+    while True:
+        try:
+            await asyncio.sleep(7200)  # 2 hours
+            # Try to fetch from world_feed_service
+            if hasattr(world_feed_service, '_last_feed') and world_feed_service._last_feed:
+                _world_news_cache = world_feed_service._last_feed
+                rco_log("GEO", "GLOBAL", f"News cache refreshed", level="info")
+            else:
+                rco_log("GEO", "GLOBAL", "News cache not updated (no new data)", level="info")
+        except Exception as e:
+            rco_log("GEO", "GLOBAL", f"News refresh error: {str(e)}", level="error")
+            await asyncio.sleep(60)  # Retry in 1 min
 
 
 # ── LOOP 4: Watchdog — auto-restart dead loops ───────────────────────
@@ -951,6 +1191,8 @@ async def watchdog_loop():
                         _loop_tasks["agent"]   = asyncio.create_task(agent_loop())
                     elif name == "outcome":
                         _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
+                    elif name == "news_refresh":
+                        _loop_tasks["news_refresh"] = asyncio.create_task(_world_news_refresh_loop())
                     restarted.append(name)
             if restarted:
                 await telegram_service.send_watchdog_alert(restarted)
@@ -984,6 +1226,7 @@ async def startup_event():
     _loop_tasks["price"]   = asyncio.create_task(price_loop())
     _loop_tasks["agent"]   = asyncio.create_task(agent_loop())
     _loop_tasks["outcome"] = asyncio.create_task(outcome_checker_loop())
+    _loop_tasks["news_refresh"] = asyncio.create_task(_world_news_refresh_loop())
     asyncio.create_task(watchdog_loop())
     print("[Startup] Outcome checker + watchdog started — runs every 1 hour")
     print("[Startup] All loops started.")

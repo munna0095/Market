@@ -6,6 +6,12 @@ then issues the master BUY / SELL / HOLD with confidence and risk level.
 from .base_agent import BaseAgent
 from .memory_manager import MemoryManager
 
+# Import rco_log for real-time commentary (will be available after main.py loads)
+rco_log = None
+def _set_rco_log(fn):
+    global rco_log
+    rco_log = fn
+
 
 class OrchestratorAgent(BaseAgent):
     def __init__(self):
@@ -74,6 +80,8 @@ RISK: LOW / MEDIUM / HIGH
         response = await self.get_response(prompt)
 
         if not response or "ANALYSIS_UNAVAILABLE" in response:
+            if rco_log:
+                rco_log("BOSS", pair, "All LLM providers exhausted", level="error")
             return {"decision": "HOLD", "confidence": 0,
                     "thought": response or "", "price": price,
                     "risk_level": "MEDIUM",
@@ -97,6 +105,12 @@ RISK: LOW / MEDIUM / HIGH
             pair=pair, decision=decision, reasoning=response[:300],
             price=price, indicators=indicators, confidence=confidence
         )
+
+        # Log final orchestrator decision
+        if rco_log:
+            rco_log("BOSS", pair,
+                f"FINAL: {decision} | Confidence: {confidence}% | Risk: {risk_level}",
+                level="signal" if decision != "HOLD" else "info")
 
         return {
             "decision":   decision,
