@@ -568,6 +568,19 @@ function showNotification(message, type = "info") {
 }
 
 // ── NAVIGATION ──────────────────────────────────────────────────────
+// ── UPDATE VIX DISPLAY ──────────────────────────────────────────────
+async function updateVIX() {
+  const data = await safeFetch("/api/vix");
+  if (data && data.vix !== undefined) {
+    const vixEl = document.getElementById("vix-display");
+    if (vixEl) {
+      vixEl.textContent = `VIX: ${data.vix.toFixed(2)}`;
+      vixEl.style.color = data.vix <= 18 ? 'var(--green)' : 'var(--red)';
+      vixEl.title = `VIX ${data.status} (threshold: ${data.threshold})`;
+    }
+  }
+}
+
 function show(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => {
@@ -927,7 +940,9 @@ async function loadAgents() {
 
 // ── AUTO REFRESH ─────────────────────────────────────────────────────
 loadDashboard();
+updateVIX();
 setInterval(loadDashboard, 3000);   // prices refresh every 3 seconds
+setInterval(updateVIX, 60000);      // VIX refresh every 60 seconds
 setInterval(() => {
   if (document.getElementById('page-paper-panel') && document.getElementById('page-paper-panel').classList.contains('active')) loadPaper();
 }, 15000);

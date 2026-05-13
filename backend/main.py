@@ -414,6 +414,34 @@ async def rco_latest(limit: int = 50):
         "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     }
 
+@app.get("/api/vix")
+async def get_vix():
+    """Get current VIX (Volatility Index) value"""
+    try:
+        import yfinance as yf
+        vix_ticker = yf.Ticker("^VIX")
+        vix_data = vix_ticker.history(period="1d")
+
+        if not vix_data.empty:
+            vix_value = float(vix_data["Close"].iloc[-1])
+            return {
+                "vix": round(vix_value, 2),
+                "timestamp": datetime.now().isoformat(),
+                "threshold": 18,
+                "status": "safe" if vix_value <= 18 else "elevated"
+            }
+        else:
+            raise ValueError("No VIX data available")
+    except Exception as e:
+        logger.error(f"VIX fetch failed: {e}")
+        return {
+            "vix": 0,
+            "timestamp": datetime.now().isoformat(),
+            "threshold": 18,
+            "status": "unknown",
+            "error": str(e)
+        }
+
 @app.get("/api/rco/stream")
 async def rco_stream():
     """Server-Sent Events stream for real-time RCO feed"""
