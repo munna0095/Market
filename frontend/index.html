@@ -432,6 +432,50 @@
 </div><!-- end #main -->
 
 <script>
+// ── SAFE FETCH WITH ERROR HANDLING ───────────────────────────────────
+async function safeFetch(url, options = {}) {
+  const timeout = 10000;  // 10 second timeout
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Request timeout after 10s")), timeout)
+  );
+
+  try {
+    const fetchPromise = fetch(url, options);
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Fetch error (${url}): ${error.message}`);
+    showNotification(`Error: ${error.message}`, "error");
+    return null;  // Return null on failure
+  }
+}
+
+function showNotification(message, type = "info") {
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    border-radius: 4px;
+    color: white;
+    background: ${type === "error" ? "#f23645" : "#089981"};
+    z-index: 9999;
+    max-width: 300px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    font-size: 12px;
+  `;
+  document.body.appendChild(notification);
+  setTimeout(() => notification.remove(), 5000);
+}
+
 // ── NAVIGATION ──────────────────────────────────────────────────────
 function show(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -494,7 +538,8 @@ async function loadDashboard() {
 
   // Tokens
   try {
-    const t = await fetch('/api/token-usage').then(r=>r.json());
+    const t = await safeFetch('/api/token-usage');
+    if (!t) return;
     const gp = Math.min(Math.round((t.groq/500000)*100), 100);
     document.getElementById('groq-fill').style.width = gp + '%';
     document.getElementById('groq-fill').style.background = gp > 80 ? 'var(--red)' : 'var(--blue)';
@@ -511,7 +556,8 @@ async function loadDashboard() {
 
   // Prices
   try {
-    const p = await fetch('/api/prices').then(r=>r.json());
+    const p = await safeFetch('/api/prices');
+    if (!p) return;
     const d = p.data || p;
     [['NIFTY','NIFTY'],['SENSEX','SENSEX'],['BTC/USD','BTC'],
      ['EUR/USD','EURUSD'],['USD/JPY','USDJPY']].forEach(([key,id]) => {
@@ -527,7 +573,8 @@ async function loadDashboard() {
 
   // Latest signals
   try {
-    const s = await fetch('/api/signals/history?limit=10').then(r=>r.json());
+    const s = await safeFetch('/api/signals/history?limit=10');
+    if (!s) return;
     const arr = Array.isArray(s) ? s : (s.value || []);
     const rows = arr.filter(x=>x.decision!=='HOLD').slice(0,8).map(s =>
       `<tr class="${s.outcome==='WIN'?'row-win':s.outcome==='LOSS'?'row-loss':''}">

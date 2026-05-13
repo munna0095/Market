@@ -6,14 +6,39 @@ TWO SEPARATE LOOPS:
 This gives real-time price updates without AI blocking the feed.
 """
 import asyncio
+from asyncio import Lock
 import json
 import os
+import logging
+import logging.handlers
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()  # Load .env FIRST before any service initializes
+
+# ── STRUCTURED LOGGING SETUP ───────────────────────────────────────────────────
+LOG_DIR = Path("/opt/share-market/logs") if os.path.exists("/opt/share-market") else Path("./logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler(LOG_DIR / "app.log"),
+        logging.StreamHandler()  # Also print to console
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Set levels for noisy libraries
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+logging.getLogger("websocket").setLevel(logging.WARNING)
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
@@ -182,11 +207,28 @@ from agents.orchestrator import _set_rco_log
 _set_rco_log(rco_log)
 
 _latest_signals: dict = {}
+_signal_locks: dict = {}  # Per-pair asyncio.Lock for thread-safe writes
+
+def _get_pair_lock(pair: str) -> Lock:
+    """Get or create asyncio.Lock for a pair to prevent race conditions"""
+    if pair not in _signal_locks:
+        _signal_locks[pair] = Lock()
+    return _signal_locks[pair]
+
 _nse_cycle_data: dict = {}
 _loop_tasks: dict = {"price": None, "agent": None, "outcome": None, "news_refresh": None}
 _world_news_cache: str = "Initializing global intelligence feed..."
 MONITORED_PAIRS = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
 
+# ── API PARAMETER VALIDATION ───────────────────────────────────────────────────
+def validate_pair(pair: str) -> str:
+    """Dependency to validate pair parameter against MONITORED_PAIRS"""
+    if pair not in MONITORED_PAIRS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown pair: {pair}. Allowed pairs: {', '.join(MONITORED_PAIRS)}"
+        )
+    return pair
 
 # ── WebSocket Connection Manager ───────────────────────────────────────────────
 class ConnectionManager:
@@ -196,12 +238,12 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"[WS] Connected. Total: {len(self.active_connections)}")
+        logger.info(f"WebSocket connected. Total active: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-        print(f"[WS] Disconnected. Total: {len(self.active_connections)}")
+        logger.info(f"WebSocket disconnected. Total active: {len(self.active_connections)}")
 
     async def broadcast(self, message: str):
         dead = []
@@ -300,21 +342,24 @@ async def get_indicators(pair: str):
 from services.backtest_service import run_backtest
 
 @app.get("/api/backtest")
-async def get_backtest(pair: str = "BTC/USD", _: bool = Depends(verify_api_key)):
-    supported = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
-    if pair not in supported:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail=f"Unsupported pair. Use: {supported}")
+async def get_backtest(
+    pair: str = Depends(validate_pair),
+    _: bool = Depends(verify_api_key)
+):
     try:
         result = await asyncio.to_thread(run_backtest, pair)
+        rco_log("API", pair, "backtest endpoint called", level="info")
         return result
     except Exception as e:
-        from fastapi import HTTPException
+        rco_log("API", pair, f"backtest error: {str(e)}", level="error")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/signals/history")
 async def signals_history_endpoint(pair: str = None, limit: int = 50):
     """Return recent agent signals with outcomes."""
+    # Validate pair if provided
+    if pair is not None:
+        pair = validate_pair(pair)
     return get_signal_history(pair=pair, limit=limit)
 
 @app.get("/api/signals/performance")
@@ -400,16 +445,26 @@ async def rco_stream():
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/refresh_agents")
-async def refresh_agents_endpoint(pair: str = "EUR/USD", _: bool = Depends(verify_api_key)):
+async def refresh_agents_endpoint(
+    pair: str = "EUR/USD",
+    _: bool = Depends(verify_api_key)
+):
     """Trigger immediate agent analysis for one pair — NO Telegram (manual refresh)."""
+    # Normalize pair format (handle both "EUR_USD" and "EUR/USD")
     actual_pair = pair.replace("_", "/").upper()
+
+    # Validate after normalization
+    actual_pair = validate_pair(actual_pair)
+
     try:
+        rco_log("API", actual_pair, "refresh_agents endpoint called", level="info")
         market_summary = await market_data_agent.get_market_summary([actual_pair])
         news_text = market_summary.get("news_text", "")
         await _run_agents_for_pair(actual_pair, market_summary, news_text, send_telegram=False)
         return {"status": "ok", "pair": actual_pair,
                 "signal": _latest_signals.get(actual_pair, {})}
     except Exception as e:
+        rco_log("API", actual_pair, f"refresh_agents error: {str(e)}", level="error")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
@@ -582,8 +637,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        logger.info("WebSocket client disconnected normally")
     except Exception as e:
-        print(f"[WS] Error: {e}")
+        logger.error(f"WebSocket error: {e}", exc_info=True)
+
+        # Notify client of error BEFORE disconnect
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Server error: {str(e)[:100]}",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except:
+            pass  # Client already disconnected or unable to receive
+
         manager.disconnect(websocket)
 
 
@@ -705,30 +772,32 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
                     "price": price_data.get("price", 0),
                 }))
 
-        _latest_signals[target_pair] = {
-            "decision":        final["decision"],
-            "confidence":      final["confidence"],
-            "risk_level":      final["risk_level"],
-            "price":           final["price"],
-            "selected_agents": selected,
-            "skipped_agents":  skipped,
-        }
+        # ===== THREAD-SAFE SIGNAL UPDATE (prevents race condition) =====
+        async with _get_pair_lock(target_pair):
+            _latest_signals[target_pair] = {
+                "decision":        final["decision"],
+                "confidence":      final["confidence"],
+                "risk_level":      final["risk_level"],
+                "price":           final["price"],
+                "selected_agents": selected,
+                "skipped_agents":  skipped,
+            }
 
-        def _extract(val):
-            if isinstance(val, dict):
-                return str(val.get("analysis", "") or val.get("thought", "") or "")[:300]
-            return str(val or "")[:300]
-        _latest_signals[target_pair]["quant_summary"]    = _extract(final.get("_quant_result"))
-        _latest_signals[target_pair]["academic_summary"] = _extract(final.get("_academic_result"))
-        _latest_signals[target_pair]["geo_summary"]      = _extract(final.get("_geo_result"))
-        _latest_signals[target_pair]["boss_reasoning"]   = str(final.get("thought", ""))[:300]
-        _latest_signals[target_pair]["indicators"] = {
-            "rsi":  price_data.get("rsi"),
-            "macd": price_data.get("macd"),
-            "adx":  price_data.get("adx"),
-            "ema20": price_data.get("ema_20"),
-            "ema50": price_data.get("ema_50"),
-        }
+            def _extract(val):
+                if isinstance(val, dict):
+                    return str(val.get("analysis", "") or val.get("thought", "") or "")[:300]
+                return str(val or "")[:300]
+            _latest_signals[target_pair]["quant_summary"]    = _extract(final.get("_quant_result"))
+            _latest_signals[target_pair]["academic_summary"] = _extract(final.get("_academic_result"))
+            _latest_signals[target_pair]["geo_summary"]      = _extract(final.get("_geo_result"))
+            _latest_signals[target_pair]["boss_reasoning"]   = str(final.get("thought", ""))[:300]
+            _latest_signals[target_pair]["indicators"] = {
+                "rsi":  price_data.get("rsi"),
+                "macd": price_data.get("macd"),
+                "adx":  price_data.get("adx"),
+                "ema20": price_data.get("ema_20"),
+                "ema50": price_data.get("ema_50"),
+            }
 
         # Persist signal to database
         decision   = final.get("decision", "HOLD")
@@ -831,9 +900,11 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
         except Exception as e:
             print(f"[ATR] Calculation failed: {e}")
 
-        _latest_signals[target_pair]["stop_loss"] = stop_loss
-        _latest_signals[target_pair]["target"]    = target
-        _latest_signals[target_pair]["datetime"]  = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
+        # ===== UPDATE SIGNAL WITH ATR RESULTS (thread-safe) =====
+        async with _get_pair_lock(target_pair):
+            _latest_signals[target_pair]["stop_loss"] = stop_loss
+            _latest_signals[target_pair]["target"]    = target
+            _latest_signals[target_pair]["datetime"]  = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
 
         if signal_should_save:
             try:
