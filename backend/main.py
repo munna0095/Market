@@ -1114,8 +1114,8 @@ async def _run_agents_for_pair(target_pair: str, market_summary: dict,
 
 # ── LOOP 3: Outcome Checker (every 1 hour) ────────────────────────────────────
 async def outcome_checker_loop():
-    """Every hour: check price movement for PENDING signals → WIN/LOSS."""
-    await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
+    """Check signal outcomes every minute (batched yfinance downloads)."""
+    await asyncio.sleep(60)  # Check every 1 minute
     while True:
         try:
             from services.database_service import get_pending_outcomes, update_outcome
@@ -1132,11 +1132,21 @@ async def outcome_checker_loop():
                 "USD/JPY": "JPY=X",
             }
 
+            # Group signals by pair to batch yfinance downloads
+            signals_by_pair = {}
             for sig in pending:
+                pair = sig["pair"]
+                if pair not in signals_by_pair:
+                    signals_by_pair[pair] = []
+                signals_by_pair[pair].append(sig)
+
+            # Download price data once per pair
+            price_cache = {}
+            for pair in signals_by_pair:
+                ticker = TICKERS.get(pair)
+                if not ticker:
+                    continue
                 try:
-                    ticker = TICKERS.get(sig["pair"])
-                    if not ticker:
-                        continue
                     data = yf.download(
                         ticker, period="1d", interval="1h", progress=False
                     )
@@ -1145,90 +1155,102 @@ async def outcome_checker_loop():
                     close_col = data["Close"]
                     if isinstance(close_col, pd.DataFrame):
                         close_col = close_col.iloc[:, 0]
-                    current  = float(close_col.iloc[-1])
+                    current = float(close_col.iloc[-1])
                     # Use real-time AngelOne price for NSE pairs if available
-                    if sig["pair"] in ("NIFTY", "SENSEX"):
-                        _cached = angel_service.get_cached_price(sig["pair"])
+                    if pair in ("NIFTY", "SENSEX"):
+                        _cached = angel_service.get_cached_price(pair)
                         if _cached and _cached.get("price"):
                             current = float(_cached["price"])
-                    entry    = sig["price_at_signal"]
-                    if not entry or entry == 0:
-                        continue
-
-                    sl       = sig.get("stop_loss")
-                    tp       = sig.get("target")
-                    dec      = sig["decision"]
-
-                    if sl and tp:
-                        if dec == "BUY":
-                            if current >= tp:
-                                outcome = "WIN"
-                            elif current <= sl:
-                                outcome = "LOSS"
-                            else:
-                                outcome = "PENDING"
-                        elif dec == "SELL":
-                            if current <= tp:
-                                outcome = "WIN"
-                            elif current >= sl:
-                                outcome = "LOSS"
-                            else:
-                                outcome = "PENDING"
-                        else:
-                            outcome = "NEUTRAL"
-                    else:
-                        # Fallback: 0.2% threshold
-                        pct = (current - entry) / entry
-                        if dec == "BUY":
-                            outcome = "WIN" if pct > 0.002 else "LOSS" if pct < -0.002 else "NEUTRAL"
-                        elif dec == "SELL":
-                            outcome = "WIN" if pct < -0.002 else "LOSS" if pct > 0.002 else "NEUTRAL"
-                        else:
-                            outcome = "NEUTRAL"
-
-                    if outcome == "PENDING":
-                        continue  # SL/TP not hit yet — leave in PENDING state
-
-                    update_outcome(
-                        signal_id = sig["id"],
-                        outcome   = outcome,
-                        price_1h  = current,
-                    )
-                    print(f"[Outcome] {sig['pair']} {sig['decision']} "
-                          f"-> {outcome} (price={current})")
-
-                    # Send immediate Telegram alert
-                    entry     = float(sig.get("price_at_signal") or 0)
-                    sl        = float(sig.get("stop_loss") or 0)
-                    tp        = float(sig.get("target") or 0)
-                    pair_name = sig["pair"]
-                    dp        = 2 if pair_name in ("NIFTY", "SENSEX", "BTC/USD") else 4
-                    sym       = "₹" if pair_name in ("NIFTY", "SENSEX") else ""
-                    fmt_v     = lambda v: f"{sym}{v:,.{dp}f}"
-                    pnl_pts   = round(current - entry, dp) if sig["decision"] == "BUY" else round(entry - current, dp)
-                    pnl_pct   = round((abs(pnl_pts) / entry) * 100, 2) if entry else 0
-
-                    if outcome == "WIN":
-                        msg = (f"\U0001f3af TARGET HIT — {pair_name}\n"
-                               f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
-                               f"Exit:   {fmt_v(current)}\n"
-                               f"P&L:    +{abs(pnl_pts):,.{dp}f} pts (+{pnl_pct}%)\n"
-                               f"Result: ✅ WIN")
-                    else:
-                        msg = (f"\U0001f6d1 STOP LOSS HIT — {pair_name}\n"
-                               f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
-                               f"Exit:   {fmt_v(current)}\n"
-                               f"P&L:    -{abs(pnl_pts):,.{dp}f} pts (-{pnl_pct}%)\n"
-                               f"Result: ❌ LOSS")
-                    await telegram_service.send_message(msg)
-
+                    price_cache[pair] = current
                 except Exception as e:
-                    print(f"[Outcome] Error on signal {sig.get('id')}: {e}")
+                    print(f"[Outcome] Error downloading {pair}: {e}")
+
+            # Check outcomes using cached prices
+            for pair, sigs in signals_by_pair.items():
+                if pair not in price_cache:
+                    continue
+                current = price_cache[pair]
+
+                for sig in sigs:
+                    try:
+                        entry = sig["price_at_signal"]
+                        if not entry or entry == 0:
+                            continue
+
+                        sl = sig.get("stop_loss")
+                        tp = sig.get("target")
+                        dec = sig["decision"]
+
+                        if sl and tp:
+                            if dec == "BUY":
+                                if current >= tp:
+                                    outcome = "WIN"
+                                elif current <= sl:
+                                    outcome = "LOSS"
+                                else:
+                                    outcome = "PENDING"
+                            elif dec == "SELL":
+                                if current <= tp:
+                                    outcome = "WIN"
+                                elif current >= sl:
+                                    outcome = "LOSS"
+                                else:
+                                    outcome = "PENDING"
+                            else:
+                                outcome = "NEUTRAL"
+                        else:
+                            # Fallback: 0.2% threshold
+                            pct = (current - entry) / entry
+                            if dec == "BUY":
+                                outcome = "WIN" if pct > 0.002 else "LOSS" if pct < -0.002 else "NEUTRAL"
+                            elif dec == "SELL":
+                                outcome = "WIN" if pct < -0.002 else "LOSS" if pct > 0.002 else "NEUTRAL"
+                            else:
+                                outcome = "NEUTRAL"
+
+                        if outcome == "PENDING":
+                            continue  # SL/TP not hit yet — leave in PENDING state
+
+                        update_outcome(
+                            signal_id = sig["id"],
+                            outcome   = outcome,
+                            price_1h  = current,
+                        )
+                        print(f"[Outcome] {sig['pair']} {sig['decision']} "
+                              f"-> {outcome} (price={current})")
+
+                        # Send immediate Telegram alert
+                        entry     = float(sig.get("price_at_signal") or 0)
+                        sl        = float(sig.get("stop_loss") or 0)
+                        tp        = float(sig.get("target") or 0)
+                        pair_name = sig["pair"]
+                        dp        = 2 if pair_name in ("NIFTY", "SENSEX", "BTC/USD") else 4
+                        sym       = "₹" if pair_name in ("NIFTY", "SENSEX") else ""
+                        fmt_v     = lambda v: f"{sym}{v:,.{dp}f}"
+                        pnl_pts   = round(current - entry, dp) if sig["decision"] == "BUY" else round(entry - current, dp)
+                        pnl_pct   = round((abs(pnl_pts) / entry) * 100, 2) if entry else 0
+
+                        if outcome == "WIN":
+                            msg = (f"\U0001f3af TARGET HIT — {pair_name}\n"
+                                   f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
+                                   f"Exit:   {fmt_v(current)}\n"
+                                   f"P&L:    +{abs(pnl_pts):,.{dp}f} pts (+{pnl_pct}%)\n"
+                                   f"Result: ✅ WIN")
+                        else:
+                            msg = (f"\U0001f6d1 STOP LOSS HIT — {pair_name}\n"
+                                   f"Signal: {sig['decision']} @ {fmt_v(entry)}\n"
+                                   f"Exit:   {fmt_v(current)}\n"
+                                   f"P&L:    -{abs(pnl_pts):,.{dp}f} pts (-{pnl_pct}%)\n"
+                                   f"Result: ❌ LOSS")
+                        await telegram_service.send_message(msg)
+
+                    except Exception as e:
+                        print(f"[Outcome] Error on signal {sig.get('id')}: {e}")
 
         except Exception as e:
             print(f"[Outcome] Loop error: {e}")
 
-        await asyncio.sleep(60)  # Check every 1 minute instead of 1 hour
+        await asyncio.sleep(60)  # Check every 1 minute
 
 
 # ── LOOP 2: AI Agent Loop — SMART session-aware ────────────────────────────────
