@@ -62,6 +62,31 @@ from services.angelone_service import angel_service
 from services.database_service import (
     init_db, save_signal, get_signal_history, get_win_rate_by_pair
 )
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# ── CACHE CONTROL MIDDLEWARE ───────────────────────────────────────────────────
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """Add Cache-Control headers to optimize static assets and API responses"""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+
+        # Cache static assets (JS, CSS, images)
+        if path.endswith((".js", ".css", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2")):
+            response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+
+        # Short cache for HTML (allow updates)
+        elif path.endswith(".html") or path == "/":
+            response.headers["Cache-Control"] = "public, max-age=300, must-revalidate"
+
+        # No cache for API endpoints
+        elif path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+
+        return response
 
 app = FastAPI(title="Strategic War Room — AI Trading Hub v3.0")
 
@@ -71,6 +96,9 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 # CORS configuration — restrict to known origins only
 ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000,http://168.144.64.203").split(",")
+
+# Add Cache-Control middleware (before CORS for proper ordering)
+app.add_middleware(CacheControlMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
