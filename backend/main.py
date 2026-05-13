@@ -88,7 +88,42 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
 
         return response
 
-app = FastAPI(title="Strategic War Room — AI Trading Hub v3.0")
+app = FastAPI(
+    title="Strategic War Room API",
+    description="""
+Real-time AI-driven trading signal API.
+
+## Features
+- **Live Prices**: Get real-time price data for NIFTY, SENSEX, BTC/USD, EUR/USD, USD/JPY
+- **AI Signals**: Multi-agent trading signals with confidence scores
+- **Backtesting**: Historical performance analysis
+- **RCO Feed**: Real-time agent commentary stream (Server-Sent Events)
+- **Token Usage**: Track LLM API consumption (Groq, OpenRouter, Gemini)
+- **VIX Monitoring**: Real-time volatility index tracking
+
+## Authentication
+Mutation endpoints (POST) require `X-API-Key` header.
+
+## Trading Hours
+- NSE (NIFTY/SENSEX): 9:20-10:30 AM, 1:30-2:30 PM IST
+- Crypto (24/7): BTC/USD, EUR/USD, USD/JPY
+""",
+    version="1.0.0",
+    contact={
+        "name": "Arun-Dev",
+        "url": "https://github.com/munna0095/Market",
+    },
+    license_info={
+        "name": "MIT",
+    },
+    openapi_tags=[
+        {"name": "prices", "description": "Live price data"},
+        {"name": "signals", "description": "Trading signals & history"},
+        {"name": "agents", "description": "AI agent management"},
+        {"name": "backtest", "description": "Historical analysis"},
+        {"name": "monitoring", "description": "System health & metrics"},
+    ]
+)
 
 # Serve frontend static files
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -333,8 +368,18 @@ async def get_news():
 def get_signals():
     return {"signals": _latest_signals}
 
-@app.get("/api/prices")
+@app.get("/api/prices", tags=["prices"])
 async def get_prices():
+    """
+    Get live prices for all monitored pairs.
+
+    Returns price, high, low, open, previous close, and change %.
+    Updates every 5 seconds via price_loop.
+
+    **Pairs:**
+    - NIFTY, SENSEX (via AngelOne real-time)
+    - BTC/USD, EUR/USD, USD/JPY (via yfinance)
+    """
     prices = await market_data_agent.get_all_prices(MONITORED_PAIRS)
     # Override NIFTY + SENSEX with AngelOne real-time price
     for pair in ["NIFTY", "SENSEX"]:
@@ -369,11 +414,20 @@ async def get_indicators(pair: str):
 
 from services.backtest_service import run_backtest
 
-@app.get("/api/backtest")
+@app.get("/api/backtest", tags=["backtest"])
 async def get_backtest(
     pair: str = Depends(validate_pair),
     _: bool = Depends(verify_api_key)
 ):
+    """
+    Get historical backtest results for a trading pair.
+
+    - **pair**: Trading pair (NIFTY, SENSEX, BTC/USD, EUR/USD, USD/JPY)
+    - **X-API-Key** header required
+
+    Analyzes 60 days of 15-minute candles and returns win rate,
+    signal distribution, and historical outcomes.
+    """
     try:
         result = await asyncio.to_thread(run_backtest, pair)
         rco_log("API", pair, "backtest endpoint called", level="info")
@@ -382,9 +436,17 @@ async def get_backtest(
         rco_log("API", pair, f"backtest error: {str(e)}", level="error")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/signals/history")
+@app.get("/api/signals/history", tags=["signals"])
 async def signals_history_endpoint(pair: str = None, limit: int = 50):
-    """Return recent agent signals with outcomes."""
+    """
+    Get recent trading signals.
+
+    - **pair** (optional): Filter by trading pair (NIFTY, SENSEX, BTC/USD, EUR/USD, USD/JPY)
+    - **limit**: Number of signals to return (default: 50)
+
+    Returns signals with decision (BUY/SELL/HOLD), confidence, provider,
+    stop-loss, target, and outcome (WIN/LOSS/PENDING).
+    """
     # Validate pair if provided
     if pair is not None:
         pair = validate_pair(pair)
@@ -433,18 +495,33 @@ async def get_token_usage():
         "gemini_remaining":  1_000_000 - gemini_used,
     }
 
-@app.get("/api/rco/latest")
+@app.get("/api/rco/latest", tags=["monitoring"])
 async def rco_latest(limit: int = 50):
-    """Get latest RCO entries (non-streaming fallback for polling)"""
+    """
+    Get latest Real-Time Commentary Output (RCO) entries.
+
+    Non-streaming fallback for polling (use /api/rco/stream for streaming).
+
+    - **limit**: Number of entries to return (default: 50)
+
+    Returns real-time agent decisions, reasoning, and gate logic.
+    """
     return {
         "data": list(_rco_buffer)[-limit:],
         "total": len(_rco_buffer),
         "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     }
 
-@app.get("/api/vix")
+@app.get("/api/vix", tags=["monitoring"])
 async def get_vix():
-    """Get current VIX (Volatility Index) value"""
+    """
+    Get current VIX (Volatility Index).
+
+    VIX > 18 triggers filter that blocks NIFTY/SENSEX signals.
+    Updates every 60 seconds.
+
+    Returns: VIX value, status (safe/elevated), and threshold.
+    """
     try:
         import yfinance as yf
         vix_ticker = yf.Ticker("^VIX")
