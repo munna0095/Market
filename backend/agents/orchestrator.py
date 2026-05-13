@@ -3,7 +3,7 @@ Orchestrator Agent — synthesizes all agent reports into one final decision.
 Receives outputs from Academic, Geopolitical, Quantitative, and User agents,
 then issues the master BUY / SELL / HOLD with confidence and risk level.
 """
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, AgentResponse
 from .memory_manager import MemoryManager
 
 # Import rco_log for real-time commentary (will be available after main.py loads)
@@ -118,4 +118,5 @@ RISK: LOW / MEDIUM / HIGH
             "risk_level": risk_level,
             "thought":    response,
             "price":      price,
+            "provider":   "ensemble",  # Orchestrator synthesizes from multiple agents
         }

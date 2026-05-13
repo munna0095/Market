@@ -1,12 +1,36 @@
 import os
 import sqlite3
 from datetime import date
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Dict, Any
 from groq import AsyncGroq
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ── AGENTRESPONSE DATACLASS ────────────────────────────────────────────────
+@dataclass
+class AgentResponse:
+    """Standardized response from any agent (replaces loose dicts)"""
+    decision: str                           # "BUY", "SELL", "HOLD"
+    confidence: int                         # 0-100
+    reasoning: str = ""                     # Why this decision
+    provider: str = "unknown"               # "groq", "gemini", "openrouter", "ensemble"
+    tokens_used: int = 0                    # Token count
+    indicators: Dict[str, Any] = field(default_factory=dict)  # {"rsi": 65.3, ...}
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization"""
+        return asdict(self)
+
+    def __post_init__(self):
+        """Validate after creation"""
+        if self.decision not in ["BUY", "SELL", "HOLD"]:
+            raise ValueError(f"Invalid decision: {self.decision}")
+        if not (0 <= self.confidence <= 100):
+            raise ValueError(f"Confidence out of range: {self.confidence}")
 
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 GEMINI_MODEL = "gemini-flash-latest"
@@ -139,6 +163,7 @@ class BaseAgent:
         return data["choices"][0]["message"]["content"]
 
     async def get_response(self, prompt: str) -> str:
+        """Get LLM response (returns text for backward compatibility)"""
         import asyncio
         providers = [
             ("groq",     "groq",       lambda: self._call_groq(prompt)),
@@ -163,3 +188,45 @@ class BaseAgent:
 
         print(f"[{self.name}] ALL providers failed")
         return "ANALYSIS_UNAVAILABLE: All providers exhausted"
+
+    def _parse_response(self, text: str, provider: str = "unknown") -> AgentResponse:
+        """Parse LLM text response into AgentResponse dataclass.
+
+        Handles both JSON and regex parsing for flexibility.
+        """
+        import json
+        import re
+
+        decision = "HOLD"
+        confidence = 50
+        reasoning = ""
+
+        # Try JSON parse first
+        try:
+            data = json.loads(text)
+            decision = data.get("decision", "HOLD").upper()
+            confidence = int(data.get("confidence", 50))
+            reasoning = data.get("reasoning", text[:300])
+        except:
+            # Fallback: regex parse from text
+            if "DECISION: BUY" in text.upper():
+                decision = "BUY"
+            elif "DECISION: SELL" in text.upper():
+                decision = "SELL"
+
+            # Extract confidence
+            conf_match = re.search(r"(\d{1,3})%?(?:\s|$|:)", text)
+            if conf_match:
+                confidence = int(conf_match.group(1))
+            confidence = min(100, max(0, confidence))
+
+            reasoning = text[:300]
+
+        return AgentResponse(
+            decision=decision,
+            confidence=confidence,
+            reasoning=reasoning,
+            provider=provider,
+            tokens_used=0,
+            indicators={}
+        )
