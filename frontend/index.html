@@ -570,6 +570,13 @@ function showNotification(message, type = "info") {
 }
 
 // ── NAVIGATION ──────────────────────────────────────────────────────
+// ── TOKEN USAGE COLOR ───────────────────────────────────────────────
+function getTokenColor(pct) {
+  if (pct > 95) return 'var(--red)';
+  if (pct > 90) return 'var(--orange)';
+  return 'var(--green)';
+}
+
 // ── UPDATE VIX DISPLAY ──────────────────────────────────────────────
 async function updateVIX() {
   const data = await safeFetch("/api/vix");
@@ -662,14 +669,16 @@ async function loadDashboard() {
       if (t) {
         const gp = Math.min(Math.round((t.groq/500000)*100), 100);
         document.getElementById('groq-fill').style.width = gp + '%';
-        document.getElementById('groq-fill').style.background = gp > 80 ? 'var(--red)' : 'var(--blue)';
+        document.getElementById('groq-fill').style.background = getTokenColor(gp);
         document.getElementById('groq-info').textContent =
           (t.groq/1000).toFixed(1)+'K / 500K (' + gp + '%) — ' + (t.groq_remaining/1000).toFixed(0) + 'K remaining';
         const op = Math.min(2 + Math.round((t.openrouter/200000)*10), 100);
         document.getElementById('or-fill').style.width = op + '%';
+        document.getElementById('or-fill').style.background = 'var(--green)';
         document.getElementById('or-info').textContent = (t.openrouter/1000).toFixed(1) + 'K used (unlimited)';
         const gep = Math.min(Math.round((t.gemini/1000000)*100), 100);
         document.getElementById('gem-fill').style.width = Math.max(gep,1) + '%';
+        document.getElementById('gem-fill').style.background = getTokenColor(gep);
         document.getElementById('gem-info').textContent =
           (t.gemini/1000).toFixed(1)+'K / 1M (' + gep + '%)';
       }
