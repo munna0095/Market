@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()  # Load .env FIRST before any service initializes
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -44,13 +44,25 @@ app = FastAPI(title="Strategic War Room — AI Trading Hub v3.0")
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
+# CORS configuration — restrict to known origins only
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000,http://168.144.64.203").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── API Authentication ─────────────────────────────────────────────────────────
+API_KEY = os.getenv("API_KEY", "dev-key-change-in-production")
+
+def verify_api_key(x_api_key: str = Header(None)):
+    """Verify API key for mutation endpoints."""
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return True
 
 # ── Services & Agents ──────────────────────────────────────────────────────────
 trading_service   = TradingService()
@@ -194,7 +206,7 @@ async def get_indicators(pair: str):
 from services.backtest_service import run_backtest
 
 @app.get("/api/backtest")
-async def get_backtest(pair: str = "BTC/USD"):
+async def get_backtest(pair: str = "BTC/USD", _: bool = Depends(verify_api_key)):
     supported = ["EUR/USD", "USD/JPY", "BTC/USD", "NIFTY", "SENSEX"]
     if pair not in supported:
         from fastapi import HTTPException
@@ -255,7 +267,7 @@ async def get_token_usage():
     }
 
 @app.post("/api/refresh_agents")
-async def refresh_agents_endpoint(pair: str = "EUR/USD"):
+async def refresh_agents_endpoint(pair: str = "EUR/USD", _: bool = Depends(verify_api_key)):
     """Trigger immediate agent analysis for one pair — NO Telegram (manual refresh)."""
     actual_pair = pair.replace("_", "/").upper()
     try:
@@ -448,7 +460,8 @@ async def price_loop():
     Runs every 5 seconds. Fetches ONLY prices — no AI, no blocking.
     Gives near real-time price updates to the UI.
     """
-    print("[Price Loop] Starting — 1s interval")
+    PRICE_UPDATE_INTERVAL = 5  # seconds
+    print(f"[Price Loop] Starting — {PRICE_UPDATE_INTERVAL}s interval")
     while True:
         try:
             for pair in MONITORED_PAIRS:
@@ -468,7 +481,7 @@ async def price_loop():
                 }))
         except Exception as e:
             print(f"[Price Loop] Error: {e}")
-        await asyncio.sleep(1)   # ← 1 second refresh (fast)
+        await asyncio.sleep(PRICE_UPDATE_INTERVAL)
 
 # ── Shared helper: run graph agents for one pair and broadcast results ─────────
 async def _run_agents_for_pair(target_pair: str, market_summary: dict,
@@ -909,9 +922,9 @@ async def agent_loop():
                     except Exception as _e:
                         print(f"[PreFetch] {_e}")
 
-                for pair in unique_pairs:
-                    await _run_agents_for_pair(pair, market_summary, news_text)
-                    await asyncio.sleep(5)
+                await asyncio.gather(
+                    *[_run_agents_for_pair(pair, market_summary, news_text) for pair in unique_pairs]
+                )
             else:
                 print(f"[Agent Loop] SMART: {ist_hour:02d}:{ist_minute:02d} IST "
                       f"— No active sessions, sleeping")
