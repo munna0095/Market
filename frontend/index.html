@@ -368,7 +368,7 @@
           <span id="vix-display" style="font-size:13px;font-weight:600">VIX: —</span>
         </div>
       </div>
-      <button class="btn" id="btn-refresh-dashboard" onclick="loadDashboard()">Refresh</button>
+      <button class="btn" id="btn-refresh-dashboard" onclick="loadDashboard()" aria-label="Refresh dashboard data">Refresh</button>
     </div>
 
     <!-- Token Usage -->
@@ -423,7 +423,7 @@
   <div class="page" id="page-paper-panel" role="tabpanel" aria-labelledby="nav-paper">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div class="page-title" style="margin-bottom:0">Paper Trades</div>
-      <button class="btn" id="btn-refresh-paper" onclick="loadPaper()">Refresh</button>
+      <button class="btn" id="btn-refresh-paper" onclick="loadPaper()" aria-label="Refresh paper trades">Refresh</button>
     </div>
     <div class="grid-4">
       <div class="card"><div class="card-label">Total Signals</div><div class="card-value" id="pt-total">—</div></div>
@@ -449,14 +449,14 @@
   <div class="page" id="page-backtest-panel" role="tabpanel" aria-labelledby="nav-backtest">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
       <div class="page-title" style="margin-bottom:0">Backtest Results</div>
-      <select id="bt-pair" style="padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+      <select id="bt-pair" aria-label="Select trading pair for backtest" style="padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:13px;">
         <option value="NIFTY">NIFTY</option>
         <option value="SENSEX">SENSEX</option>
         <option value="BTC/USD">BTC/USD</option>
         <option value="EUR/USD">EUR/USD</option>
         <option value="USD/JPY">USD/JPY</option>
       </select>
-      <button class="btn" id="bt-run-btn" onclick="loadBacktest()">Run Backtest</button>
+      <button class="btn" id="bt-run-btn" onclick="loadBacktest()" aria-label="Run backtest analysis">Run Backtest</button>
       <span id="bt-status" style="font-size:12px;color:var(--muted)"></span>
     </div>
     <div class="grid-3" style="margin-bottom:20px;">
