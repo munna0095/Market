@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Settings, RefreshCw, AlertCircle } from 'lucide-react'
+import { clsx } from 'clsx'
 import { EnhancedSignalCard } from './components/EnhancedSignalCard'
 import { getEnhancedSignal, getEnhancedSignalsHistory, healthCheck } from './services/api'
 import type { EnhancedSignal, HistoricalSignal } from './types'
